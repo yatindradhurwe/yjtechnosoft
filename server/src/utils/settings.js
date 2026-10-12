@@ -11,7 +11,7 @@ const PRIVATE_KEYS = [
   'twilio_sid', 'twilio_token', 'twilio_from', 'twilio_whatsapp_from',
   'whatsapp_provider', 'whatsapp_token', 'whatsapp_phone_id', 'whatsapp_custom_url', 'whatsapp_template',
   'bank_account_holder', 'bank_account_number', 'bank_ifsc', 'bank_branch', 'bank_account_type', 'bank_name', 'upi_id',
-  'office_ip_whitelist', 'notify_admin_emails',
+  'office_ip_whitelist', 'notify_admin_emails', 'vapid_private_key',
 ];
 
 async function getSettings(force = false) {

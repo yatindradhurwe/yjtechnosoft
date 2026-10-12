@@ -191,6 +191,92 @@ const LETTER_TEMPLATES = [
   },
 ];
 
+const CONTRACT_TEMPLATES = [
+  {
+    name: 'Website Development Agreement',
+    type: 'website_development',
+    title: 'Website Development Agreement',
+    body: `<p>This Website Development Agreement (“Agreement”) is entered into on <strong>{{agreement_date}}</strong> between <strong>{{company}}</strong>, having its office at {{company_address}} (“Service Provider”), and <strong>{{client_name}}</strong>, {{client_address}} (“Client”).</p>
+<h3>1. Scope of Work</h3><p>The Service Provider shall design and develop the website for the Client as described below:</p><p>{{scope_of_work}}</p>
+<h3>2. Deliverables & Timeline</h3><p>Deliverables: {{deliverables}}. The project shall commence on {{start_date}} and is expected to be completed by {{end_date}}, subject to timely receipt of content, approvals and payments from the Client.</p>
+<h3>3. Fees & Payment Terms</h3><p>The total fee for the project is <strong>Rs. {{contract_value}}/-</strong> ({{contract_value_words}}), exclusive of applicable taxes. Payment terms: {{payment_terms}}. Domain, hosting, premium plugins and third-party services are charged separately unless specifically included.</p>
+<h3>4. Client Responsibilities</h3><p>The Client shall provide text content, images, logos, credentials and feedback in a timely manner. Delays in providing the same shall extend the timeline accordingly.</p>
+<h3>5. Revisions & Change Requests</h3><p>Up to two rounds of design revisions are included. Any new feature or change outside the agreed scope will be quoted and billed separately.</p>
+<h3>6. Intellectual Property</h3><p>Upon receipt of full payment, ownership of the final website design and content shall transfer to the Client. The Service Provider may display the work in its portfolio unless the Client objects in writing. Third-party components remain subject to their respective licences.</p>
+<h3>7. Support & Warranty</h3><p>The Service Provider shall provide free bug-fix support for {{support_period}} from the date of launch. Post this period, support can be availed under an Annual Maintenance Contract.</p>
+<h3>8. Confidentiality</h3><p>Both parties shall keep confidential all information received from the other party and shall not disclose it to any third party without prior written consent.</p>
+<h3>9. Termination</h3><p>Either party may terminate this Agreement with 15 days written notice. On termination, the Client shall pay for all work completed up to the date of termination.</p>
+<h3>10. Governing Law</h3><p>This Agreement shall be governed by the laws of India and the courts at {{jurisdiction}} shall have exclusive jurisdiction.</p>`,
+  },
+  {
+    name: 'Software Development & Service Agreement',
+    type: 'software_development',
+    title: 'Software Development & Service Agreement',
+    body: `<p>This Agreement is made on <strong>{{agreement_date}}</strong> between <strong>{{company}}</strong> (“Developer”) and <strong>{{client_name}}</strong> (“Client”) for the project <strong>{{project_name}}</strong>.</p>
+<h3>1. Project Scope</h3><p>{{scope_of_work}}</p>
+<h3>2. Project Period</h3><p>The development shall be carried out from {{start_date}} to {{end_date}}. Milestones and demos will be shared periodically for the Client’s review and approval.</p>
+<h3>3. Consideration</h3><p>The Client agrees to pay <strong>Rs. {{contract_value}}/-</strong> ({{contract_value_words}}) plus applicable GST as per the following schedule: {{payment_terms}}.</p>
+<h3>4. Acceptance</h3><p>Each module shall be deemed accepted if no material defect is reported in writing within 7 days of delivery. Defects reported shall be rectified by the Developer free of cost.</p>
+<h3>5. Source Code & Ownership</h3><p>On receipt of full and final payment, the Client shall own the custom source code developed specifically for this project. Pre-existing libraries, frameworks and tools of the Developer remain the Developer’s property and are licensed to the Client for use with the software.</p>
+<h3>6. Data Security & Confidentiality</h3><p>The Developer shall take reasonable measures to protect the Client’s data and shall not disclose any confidential information, including official records, to third parties.</p>
+<h3>7. Warranty & Support</h3><p>The Developer warrants that the software will substantially perform as per the agreed specification for {{support_period}} after go-live, during which bugs will be fixed at no cost.</p>
+<h3>8. Limitation of Liability</h3><p>The Developer’s total liability under this Agreement shall not exceed the total fee paid by the Client under this Agreement.</p>
+<h3>9. Termination</h3><p>Either party may terminate this Agreement by giving 30 days written notice. All dues for work completed shall be settled within 15 days of termination.</p>
+<h3>10. Dispute Resolution</h3><p>Disputes shall first be resolved amicably; failing which they shall be subject to the exclusive jurisdiction of the courts at {{jurisdiction}}.</p>`,
+  },
+  {
+    name: 'Annual Maintenance Contract (AMC)',
+    type: 'amc',
+    title: 'Annual Maintenance Contract',
+    body: `<p>This Annual Maintenance Contract (“AMC”) is entered into on <strong>{{agreement_date}}</strong> between <strong>{{company}}</strong> (“Service Provider”) and <strong>{{client_name}}</strong> (“Client”).</p>
+<h3>1. Period</h3><p>This AMC is valid from <strong>{{start_date}}</strong> to <strong>{{end_date}}</strong>.</p>
+<h3>2. Services Covered</h3><p>{{services}}</p><ul><li>Bug fixing and troubleshooting of the existing application / website</li><li>Minor content and design updates</li><li>Security updates and regular backups</li><li>Technical support over phone, email and WhatsApp during working hours</li></ul>
+<h3>3. Response Time</h3><p>Critical issues will be attended within {{response_time}}; other requests within 2 working days.</p>
+<h3>4. Exclusions</h3><p>New modules, major redesign, third-party software licences, hardware and issues caused by unauthorised changes are not covered and will be charged separately.</p>
+<h3>5. AMC Charges</h3><p>The AMC fee is <strong>Rs. {{contract_value}}/-</strong> ({{contract_value_words}}) plus GST, payable {{payment_terms}}.</p>
+<h3>6. Renewal</h3><p>This AMC may be renewed for a further period on mutually agreed terms. The Service Provider will send a renewal reminder before expiry.</p>
+<h3>7. Termination & Jurisdiction</h3><p>Either party may terminate with 30 days written notice; fees paid for the current period are non-refundable. Subject to {{jurisdiction}} jurisdiction.</p>`,
+  },
+  {
+    name: 'Hosting, Domain & Email Service Agreement',
+    type: 'hosting',
+    title: 'Hosting & Domain Service Agreement',
+    body: `<p>This Agreement dated <strong>{{agreement_date}}</strong> is between <strong>{{company}}</strong> (“Provider”) and <strong>{{client_name}}</strong> (“Customer”).</p>
+<h3>1. Services</h3><p>{{services}}</p>
+<h3>2. Term & Renewal</h3><p>Services are provided from {{start_date}} to {{end_date}}. Services must be renewed before expiry; the Provider will send reminders 30, 15 and 7 days in advance. Services not renewed may be suspended after expiry.</p>
+<h3>3. Fees</h3><p>The fee for the term is <strong>Rs. {{contract_value}}/-</strong> plus GST, payable in advance.</p>
+<h3>4. Uptime & Backups</h3><p>The Provider shall make reasonable efforts to maintain 99.5% uptime and take periodic backups. The Customer is advised to maintain independent backups of critical data.</p>
+<h3>5. Acceptable Use</h3><p>The Customer shall not host illegal, infringing or malicious content, send spam or misuse server resources. Violation may result in suspension without refund.</p>
+<h3>6. Ownership</h3><p>Domain names registered on behalf of the Customer shall be registered in the Customer’s name. Login credentials will be shared on request after clearance of all dues.</p>
+<h3>7. Liability</h3><p>The Provider shall not be liable for losses due to data centre outages, force majeure or actions of third-party providers beyond its control. Subject to {{jurisdiction}} jurisdiction.</p>`,
+  },
+  {
+    name: 'Non-Disclosure Agreement (NDA)',
+    type: 'nda',
+    title: 'Non-Disclosure Agreement',
+    body: `<p>This Non-Disclosure Agreement is made on <strong>{{agreement_date}}</strong> between <strong>{{company}}</strong> and <strong>{{client_name}}</strong> (each a “Party”, together the “Parties”).</p>
+<h3>1. Purpose</h3><p>The Parties wish to share certain confidential information for the purpose of {{purpose}} (“Purpose”).</p>
+<h3>2. Confidential Information</h3><p>“Confidential Information” means all business, technical, financial and personal information, source code, designs, data and documents disclosed by either Party, whether oral, written or electronic.</p>
+<h3>3. Obligations</h3><ol><li>Use the Confidential Information solely for the Purpose.</li><li>Not disclose it to any third party without prior written consent.</li><li>Protect it with at least the same care used for its own confidential information.</li><li>Return or destroy all Confidential Information on request.</li></ol>
+<h3>4. Exclusions</h3><p>Obligations do not apply to information that is publicly available, already known to the receiving Party, independently developed, or required to be disclosed by law.</p>
+<h3>5. Term</h3><p>This Agreement remains in force from {{start_date}} and the confidentiality obligations shall survive for {{nda_period}} after its termination.</p>
+<h3>6. Governing Law</h3><p>This Agreement is governed by the laws of India, subject to the jurisdiction of courts at {{jurisdiction}}.</p>`,
+  },
+  {
+    name: 'Freelancer / Consultant Agreement',
+    type: 'freelancer',
+    title: 'Consultant Agreement',
+    body: `<p>This Agreement is made on <strong>{{agreement_date}}</strong> between <strong>{{company}}</strong> (“Company”) and <strong>{{client_name}}</strong>, {{client_address}} (“Consultant”).</p>
+<h3>1. Engagement</h3><p>The Company engages the Consultant on a contract basis for: {{scope_of_work}}</p>
+<h3>2. Term</h3><p>From {{start_date}} to {{end_date}}, unless terminated earlier.</p>
+<h3>3. Fees</h3><p>The Company shall pay the Consultant Rs. {{contract_value}}/- ({{contract_value_words}}) {{payment_terms}}, subject to applicable TDS.</p>
+<h3>4. Independent Contractor</h3><p>The Consultant is an independent contractor and not an employee of the Company, and is responsible for their own taxes and statutory compliance.</p>
+<h3>5. Intellectual Property & Confidentiality</h3><p>All work product created under this Agreement shall be the exclusive property of the Company. The Consultant shall keep all Company and client information strictly confidential.</p>
+<h3>6. Non-Solicitation</h3><p>During the term and for 12 months thereafter, the Consultant shall not directly solicit the Company’s clients introduced under this engagement.</p>
+<h3>7. Termination & Jurisdiction</h3><p>Either party may terminate with 15 days written notice. Subject to {{jurisdiction}} jurisdiction.</p>`,
+  },
+];
+
 async function main() {
   const dbName = process.env.DB_NAME || 'yjtechnosoft';
   const conn = await mysql.createConnection({
@@ -208,6 +294,21 @@ async function main() {
 
   const q = async (sql, params) => (await conn.query(sql, params))[0];
   const count = async (table) => (await q(`SELECT COUNT(*) c FROM \`${table}\``))[0].c;
+
+  // ---- incremental migrations (safe on existing databases) ----
+  const addColumn = async (table, column, definition) => {
+    const exists = await q('SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [table, column]);
+    if (!exists.length) await q(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+  };
+  await addColumn('quotations', 'project_id', 'INT NULL');
+  await addColumn('quotations', 'accepted_by', 'VARCHAR(150) NULL');
+  await addColumn('quotations', 'accepted_at', 'DATETIME NULL');
+  await addColumn('quotations', 'accepted_ip', 'VARCHAR(60) NULL');
+  await addColumn('quotations', 'viewed_at', 'DATETIME NULL');
+  await addColumn('invoices', 'project_id', 'INT NULL');
+  await addColumn('invoices', 'viewed_at', 'DATETIME NULL');
+  await addColumn('contracts', 'viewed_at', 'DATETIME NULL');
+  console.log('✔ Migrations');
 
   // settings – only insert missing keys, never overwrite admin changes
   for (const [k, v] of Object.entries(SETTINGS)) await q('INSERT IGNORE INTO settings (`key`, `value`) VALUES (?, ?)', [k, v]);
@@ -290,6 +391,10 @@ async function main() {
   if (!(await count('letter_templates'))) {
     await q('INSERT INTO letter_templates (name, type, title, subject, body) VALUES ?', [LETTER_TEMPLATES.map((t) => [t.name, t.type, t.title, t.subject, t.body])]);
   }
+  if (!(await count('contract_templates'))) {
+    await q('INSERT INTO contract_templates (name, type, title, body) VALUES ?', [CONTRACT_TEMPLATES.map((t) => [t.name, t.type, t.title, t.body])]);
+  }
+  await q("INSERT IGNORE INTO settings (`key`, `value`) VALUES ('contract_prefix', 'YJ/AGR')");
   if (!(await count('billing_items'))) {
     await q('INSERT INTO billing_items (name, hsn_sac, unit, rate, tax_rate) VALUES ?', [[
       ['Website Design & Development', '998314', 'Nos', 15000, 18], ['Custom Software Module', '998314', 'Nos', 25000, 18], ['Domain Registration (.com) – 1 Year', '998315', 'Nos', 999, 18],

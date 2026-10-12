@@ -34,6 +34,8 @@ app.use('/api/documents', require('./routes/documents'));
 app.use('/api/hr', require('./routes/hr'));
 app.use('/api/work', require('./routes/work'));
 app.use('/api/recruitment', require('./routes/recruitment'));
+app.use('/api/contracts', require('./routes/contracts'));
+app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api', require('./routes/settings'));
 app.use('/api/admin', require('./routes/crud'));
 app.use('/api', notFound);

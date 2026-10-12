@@ -5,6 +5,7 @@ import Home from './pages/site/Home';
 import { About, Services, ServiceDetail, Portfolio, PortfolioDetail, Blog, BlogPost, Careers, CareerDetail, Contact, GetQuote, CmsPage, NotFound } from './pages/site/Pages';
 import { Login, ForgotPassword, ResetPassword } from './pages/auth/Auth';
 import { PageLoader } from './components/ui';
+import SharePage from './pages/site/SharePage';
 
 // Admin panel is code-split so the public website stays fast
 const AdminRoutes = lazy(() => import('./AdminRoutes'));
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="page/:slug" element={<CmsPage />} />
         <Route path="*" element={<NotFound />} />
       </Route>
+      <Route path="d/:type/:id/:token" element={<SharePage />} />
       <Route path="login" element={<Login />} />
       <Route path="forgot-password" element={<ForgotPassword />} />
       <Route path="reset-password" element={<ResetPassword />} />

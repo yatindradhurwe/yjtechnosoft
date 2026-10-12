@@ -4,11 +4,12 @@ import {
   LayoutDashboard, Image, Briefcase, FileText, MessageSquareQuote, Users, Building2, Cpu, BarChart3, BadgeIndianRupee, HelpCircle, FileStack,
   Inbox, Mail, Receipt, FileSpreadsheet, Wallet, Package, Server, CreditCard, UserCog, CalendarCheck, CalendarOff, PartyPopper, Banknote, Network,
   BadgeCheck, CalendarRange, Megaphone, UserPlus, ClipboardList, FileSignature, FolderKanban, ListTodo, NotebookPen, Settings, Shield, Bell, LogOut,
-  Menu, X, ChevronDown, UserCircle, ExternalLink, Clock, Layers } from 'lucide-react';
+  Menu, X, ChevronDown, UserCircle, ExternalLink, Clock, Layers, FolderLock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSite } from '../context/SiteContext';
 import { asset, cn } from '../lib/utils';
 import { Avatar, PageLoader } from '../components/ui';
+import NotificationBell from '../components/admin/NotificationBell';
 
 export const NAV = [
   { label: 'Dashboard', to: '/admin', icon: LayoutDashboard, end: true },
@@ -36,6 +37,15 @@ export const NAV = [
       { label: 'Items Catalogue', to: '/admin/billing-items', icon: Package },
       { label: 'Expenses', to: '/admin/expenses', icon: CreditCard },
       { label: 'Leads / Enquiries', to: '/admin/enquiries', icon: Inbox },
+    ],
+  },
+  {
+    group: 'Contracts & Documents',
+    roles: ['accounts', 'hr'],
+    items: [
+      { label: 'Agreements', to: '/admin/contracts', icon: FileSignature, roles: ['accounts'] },
+      { label: 'Documents Vault', to: '/admin/vault', icon: FolderLock },
+      { label: 'Agreement Templates', to: '/admin/contract-templates', icon: FileStack, roles: ['accounts'] },
     ],
   },
   {
@@ -125,7 +135,7 @@ function Sidebar({ onNavigate }) {
               <ChevronDown className={cn('h-3.5 w-3.5 transition', closed[entry.group] && '-rotate-90')} />
             </button>
             {!closed[entry.group] &&
-              entry.items.map((it) => (
+              entry.items.filter((it) => !it.roles || visible(user, it)).map((it) => (
                 <NavLink
                   key={it.to}
                   to={it.to}
@@ -223,6 +233,8 @@ export default function AdminLayout() {
               {new Date().toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </p>
           </div>
+          <div className="flex items-center gap-1">
+          <NotificationBell />
           <div className="relative">
             <button onClick={() => setMenu(!menu)} className="flex items-center gap-3 rounded-xl px-2 py-1.5 hover:bg-slate-100">
               <Avatar src={user.avatar || user.employee_photo} name={user.name} />
@@ -251,6 +263,7 @@ export default function AdminLayout() {
                 </button>
               </div>
             )}
+          </div>
           </div>
         </header>
         <main className="p-4 sm:p-6 lg:p-8">

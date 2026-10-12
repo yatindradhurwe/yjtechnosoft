@@ -2,7 +2,7 @@ const express = require('express');
 const { one, query } = require('../config/db');
 const { authenticate } = require('../middleware/auth');
 const { asyncHandler, HttpError } = require('../middleware/error');
-const { buildDocument, sendDocument, publicLink } = require('../services/documents');
+const { buildDocument, sendDocument, publicLink, shareInfo } = require('../services/documents');
 
 const router = express.Router();
 router.use(authenticate);
@@ -13,6 +13,8 @@ const TYPE_ROLES = {
   receipt: ['accounts'],
   letter: ['hr'],
   payslip: ['hr', 'accounts'],
+  contract: ['accounts'],
+  vault: ['accounts', 'hr'],
 };
 
 async function checkAccess(user, type, id, mode = 'view') {
@@ -31,7 +33,7 @@ router.get(
     const { type, id } = req.params;
     await checkAccess(req.user, type, id);
     const doc = await buildDocument(type, id);
-    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Type', doc.contentType || 'application/pdf');
     res.setHeader('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="${doc.filename}"`);
     res.send(doc.buffer);
   })
@@ -43,6 +45,16 @@ router.get(
     const { type, id } = req.params;
     await checkAccess(req.user, type, id, 'send');
     res.json({ link: await publicLink(type, id) });
+  })
+);
+
+// Everything the quick-share buttons need (share page link, message, recipient)
+router.get(
+  '/:type/:id/share',
+  asyncHandler(async (req, res) => {
+    const { type, id } = req.params;
+    await checkAccess(req.user, type, id, 'send');
+    res.json(await shareInfo(type, id));
   })
 );
 
@@ -59,6 +71,7 @@ router.post(
       if (type === 'invoice') await query("UPDATE invoices SET status = IF(status = 'draft', 'unpaid', status) WHERE id = ?", [id]);
       if (type === 'quotation') await query("UPDATE quotations SET status = IF(status = 'draft', 'sent', status) WHERE id = ?", [id]);
       if (type === 'letter') await query("UPDATE letters SET status = IF(status IN ('draft','issued'), 'sent', status) WHERE id = ?", [id]);
+      if (type === 'contract') await query("UPDATE contracts SET status = IF(status = 'draft', 'sent', status) WHERE id = ?", [id]);
     }
     res.json(out);
   })

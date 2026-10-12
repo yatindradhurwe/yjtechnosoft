@@ -5,6 +5,7 @@ const { asyncHandler, HttpError } = require('../middleware/error');
 const { pick, toDateStr, toDateTimeStr, formatDate } = require('../utils/helpers');
 const { sendEmail } = require('../services/notify');
 const { getSettings } = require('../utils/settings');
+const { notifyEmployee, notifyUsers, fire } = require('../services/push');
 
 const router = express.Router();
 router.use(authenticate);
@@ -17,7 +18,14 @@ const TASK_FROM = `tasks t LEFT JOIN employees e ON e.id = t.assigned_to
 
 async function notifyAssignee(taskId, actor) {
   const t = await one(`SELECT ${TASK_SELECT}, e.email AS assignee_email FROM ${TASK_FROM} WHERE t.id = ?`, [taskId]);
-  if (!t || !t.assignee_email) return;
+  if (!t) return;
+  fire(notifyEmployee(t.assigned_to, {
+    title: `📌 New task: ${t.title}`,
+    body: `${t.priority.toUpperCase()} priority${t.due_date ? ` · due ${formatDate(t.due_date)}` : ''} · by ${actor.name}`,
+    link: '/admin/my/tasks',
+    type: 'task',
+  }));
+  if (!t.assignee_email) return;
   const s = await getSettings();
   await sendEmail({
     to: t.assignee_email,
@@ -139,7 +147,31 @@ router.post(
     if (!isStaffManager(req.user) && t.assigned_to !== req.user.employee_id) throw new HttpError(403, 'Not allowed');
     if (!req.body.comment) throw new HttpError(400, 'Comment is required');
     await query('INSERT INTO task_comments SET ?', [{ task_id: t.id, user_id: req.user.id, comment: req.body.comment }]);
+    // notify the other side of the conversation
+    const assignee = t.assigned_to ? await one('SELECT id FROM users WHERE employee_id = ?', [t.assigned_to]) : null;
+    const targets = [assignee && assignee.id, t.assigned_by].filter((id) => id && id !== req.user.id);
+    fire(notifyUsers(targets, { title: `💬 ${req.user.name} commented on “${t.title}”`, body: String(req.body.comment).slice(0, 140), link: assignee && targets.includes(assignee.id) ? '/admin/my/tasks' : '/admin/tasks', type: 'task' }));
     res.status(201).json({ message: 'Comment added' });
+  })
+);
+
+// ============================================================ PROJECT OVERVIEW
+router.get(
+  '/projects/:id/overview',
+  authorize('hr', 'accounts'),
+  asyncHandler(async (req, res) => {
+    const p = await one('SELECT p.*, c.name AS client_name, c.phone AS client_phone, c.email AS client_email FROM projects p LEFT JOIN clients c ON c.id = p.client_id WHERE p.id = ?', [req.params.id]);
+    if (!p) throw new HttpError(404, 'Project not found');
+    const isBilling = ['admin', 'accounts'].includes(req.user.role);
+    const [tasks, team, contracts, documents, invoices, quotations] = await Promise.all([
+      query(`SELECT ${TASK_SELECT} FROM ${TASK_FROM} WHERE t.project_id = ? ORDER BY FIELD(t.status,'in_progress','todo','review','blocked','done'), t.due_date`, [p.id]),
+      query('SELECT DISTINCT e.id, e.name, e.photo, e.emp_code FROM tasks t JOIN employees e ON e.id = t.assigned_to WHERE t.project_id = ?', [p.id]),
+      isBilling ? query('SELECT id, contract_no, title, status, agreement_date, end_date, contract_value FROM contracts WHERE project_id = ? ORDER BY id DESC', [p.id]) : [],
+      query('SELECT id, title, category, file, file_name, created_at, expiry_date FROM vault_documents WHERE project_id = ? ORDER BY id DESC', [p.id]),
+      isBilling ? query('SELECT id, invoice_no, invoice_date, total, amount_paid, status FROM invoices WHERE project_id = ? ORDER BY id DESC', [p.id]) : [],
+      isBilling ? query('SELECT id, quote_no, quote_date, total, status FROM quotations WHERE project_id = ? ORDER BY id DESC', [p.id]) : [],
+    ]);
+    res.json({ ...p, tasks, team, contracts, documents, invoices, quotations });
   })
 );
 

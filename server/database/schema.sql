@@ -676,4 +676,90 @@ CREATE TABLE IF NOT EXISTS announcements (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ---------------------------------------------------------------------------
+-- Contracts, agreements & documents vault
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS contract_templates (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  type ENUM('service_agreement','website_development','software_development','amc','hosting','nda','freelancer','mou','custom') DEFAULT 'service_agreement',
+  title VARCHAR(200) NOT NULL,
+  body MEDIUMTEXT NOT NULL,
+  status ENUM('active','inactive') DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS contracts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  contract_no VARCHAR(60) NOT NULL UNIQUE,
+  template_id INT NULL,
+  type VARCHAR(40) NOT NULL DEFAULT 'service_agreement',
+  title VARCHAR(200) NOT NULL,
+  client_id INT NULL,
+  project_id INT NULL,
+  party_name VARCHAR(200) NOT NULL,
+  party_representative VARCHAR(150),
+  party_address TEXT,
+  party_email VARCHAR(150),
+  party_phone VARCHAR(30),
+  agreement_date DATE NOT NULL,
+  start_date DATE NULL,
+  end_date DATE NULL,
+  contract_value DECIMAL(12,2) DEFAULT 0,
+  data MEDIUMTEXT,
+  body MEDIUMTEXT NOT NULL,
+  status ENUM('draft','sent','accepted','signed','active','expired','terminated') DEFAULT 'draft',
+  accepted_by VARCHAR(150) NULL,
+  accepted_at DATETIME NULL,
+  accepted_ip VARCHAR(60) NULL,
+  signed_file VARCHAR(255) NULL,
+  notes TEXT,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS vault_documents (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(200) NOT NULL,
+  category ENUM('contract','agreement','proposal','purchase_order','work_order','invoice','legal','certificate','kyc','policy','credentials','other') DEFAULT 'other',
+  file VARCHAR(255) NOT NULL,
+  file_name VARCHAR(255),
+  client_id INT NULL,
+  project_id INT NULL,
+  contract_id INT NULL,
+  document_date DATE NULL,
+  expiry_date DATE NULL,
+  tags VARCHAR(255),
+  notes TEXT,
+  uploaded_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------
+-- In-app & push notifications
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS notifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  type VARCHAR(40),
+  title VARCHAR(200) NOT NULL,
+  body VARCHAR(500),
+  link VARCHAR(255),
+  is_read TINYINT(1) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX (user_id, is_read)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  endpoint VARCHAR(600) NOT NULL,
+  p256dh VARCHAR(255) NOT NULL,
+  auth VARCHAR(100) NOT NULL,
+  user_agent VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_endpoint (endpoint(255))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SET FOREIGN_KEY_CHECKS = 1;

@@ -341,7 +341,7 @@ export function Projects() {
       fields={[{ name: 'name', label: 'Project name', required: true, span: 2 }, { name: 'client_id', label: 'Client', type: 'select', optionsFrom: { url: '/admin/clients' } }, { name: 'status', label: 'Status', type: 'select', options: ['planning', 'in_progress', 'on_hold', 'completed', 'cancelled'], noEmpty: true }, { name: 'start_date', label: 'Start date', type: 'date' }, { name: 'deadline', label: 'Deadline', type: 'date' }, { name: 'budget', label: 'Budget (₹)', type: 'number' }, { name: 'description', label: 'Description', type: 'textarea', span: 2 }]}
       defaults={{ status: 'in_progress' }}
       filters={[{ name: 'status', label: 'Status', options: ['planning', 'in_progress', 'on_hold', 'completed', 'cancelled'] }]}
-      rowActions={(r) => <Link to={`/admin/tasks?project=${r.id}`} className="btn-ghost btn-sm">Tasks</Link>}
+      rowActions={(r) => <><Link to={`/admin/projects/${r.id}`} className="btn-ghost btn-sm">Open</Link><Link to={`/admin/tasks?project=${r.id}`} className="btn-ghost btn-sm">Tasks</Link></>}
     />
   );
 }

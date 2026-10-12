@@ -85,7 +85,9 @@ router.post(
     const data = pick(req.body, r.fields);
     if (r.slugFrom) data.slug = await uniqueSlug(r.table, data.slug || data[r.slugFrom]);
     if (!Object.keys(data).length) throw new HttpError(400, 'No data provided');
+    if (r.stampUser) data[r.stampUser] = req.user.id;
     const result = await query(`INSERT INTO \`${r.table}\` SET ?`, [data]);
+    if (r.afterCreate) Promise.resolve(r.afterCreate(data, req.user)).catch(() => {});
     const row = await one(`SELECT * FROM \`${r.table}\` WHERE id = ?`, [result.insertId]);
     res.status(201).json(row);
   })

@@ -7,6 +7,7 @@ const { verifyDocToken } = require('../utils/helpers');
 const { makeUploader, fileUrl } = require('../middleware/upload');
 const { sendEmail, sendWhatsApp, notifyAdmins } = require('../services/notify');
 const { buildDocument } = require('../services/documents');
+const { notifyRoles, fire } = require('../services/push');
 
 const router = express.Router();
 const formLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false });
@@ -130,6 +131,7 @@ router.post(
          .map(([k, v]) => `<tr><td><b>${k}</b></td><td>${esc(v)}</td></tr>`)
          .join('')}</table>`
     ).catch(() => {});
+    fire(notifyRoles(['accounts'], { title: `📩 New ${source === 'quote' ? 'quote request' : 'enquiry'} – ${name}`, body: [service, phone || email].filter(Boolean).join(' · '), link: '/admin/enquiries', type: 'enquiry' }));
     if (email && s.enquiry_autoreply !== '0') {
       sendEmail({
         to: email,
@@ -184,6 +186,7 @@ router.post(
     };
     const r = await query('INSERT INTO job_applications SET ?', [data]);
     const s = await getSettings();
+    fire(notifyRoles(['hr'], { title: `🧑‍💼 New application – ${b.name}`, body: job ? job.title : 'General application', link: '/admin/applications', type: 'application' }));
     notifyAdmins(`New job application – ${esc(b.name)}${job ? ` (${esc(job.title)})` : ''}`, `<p><b>${esc(b.name)}</b> (${esc(b.email)}, ${esc(b.phone)}) applied${job ? ` for <b>${esc(job.title)}</b>` : ''}.</p>`).catch(() => {});
     sendEmail({
       to: b.email,
@@ -196,6 +199,103 @@ router.post(
   })
 );
 
+// ------------------------------------------------------------------ online share page
+const SHARE_TYPES = ['invoice', 'quotation', 'contract', 'letter', 'payslip', 'receipt', 'vault'];
+const clientIp = (req) => String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+
+async function shareMeta(type, id) {
+  if (type === 'invoice') {
+    const i = await one('SELECT i.*, c.name AS client_name FROM invoices i JOIN clients c ON c.id = i.client_id WHERE i.id = ?', [id]);
+    if (!i) return null;
+    const items = await query('SELECT description, quantity, amount FROM invoice_items WHERE invoice_id = ? ORDER BY sort_order, id', [id]);
+    return { label: 'Invoice', number: i.invoice_no, title: i.subject, party: i.client_name, date: i.invoice_date, due_date: i.due_date, total: i.total, paid: i.amount_paid, balance: Number(i.total) - Number(i.amount_paid), status: i.status, items, payable: !['paid', 'cancelled', 'draft'].includes(i.status), viewed_at: i.viewed_at };
+  }
+  if (type === 'quotation') {
+    const q = await one('SELECT q.*, c.name AS client_name FROM quotations q JOIN clients c ON c.id = q.client_id WHERE q.id = ?', [id]);
+    if (!q) return null;
+    const items = await query('SELECT description, quantity, amount FROM quotation_items WHERE quotation_id = ? ORDER BY sort_order, id', [id]);
+    return { label: 'Quotation', number: q.quote_no, title: q.subject, party: q.client_name, date: q.quote_date, valid_until: q.valid_until, total: q.total, status: q.status, items, can_accept: ['draft', 'sent'].includes(q.status), accepted_by: q.accepted_by, accepted_at: q.accepted_at, viewed_at: q.viewed_at };
+  }
+  if (type === 'contract') {
+    const k = await one('SELECT * FROM contracts WHERE id = ?', [id]);
+    if (!k) return null;
+    return { label: 'Agreement', number: k.contract_no, title: k.title, party: k.party_name, date: k.agreement_date, start_date: k.start_date, end_date: k.end_date, total: k.contract_value, status: k.status, body: k.body, can_accept: ['draft', 'sent'].includes(k.status), accepted_by: k.accepted_by, accepted_at: k.accepted_at, viewed_at: k.viewed_at };
+  }
+  if (type === 'letter') {
+    const l = await one('SELECT letter_no, title, recipient_name, issue_date, status FROM letters WHERE id = ?', [id]);
+    return l && { label: 'Letter', number: l.letter_no, title: l.title, party: l.recipient_name, date: l.issue_date, status: l.status };
+  }
+  if (type === 'receipt') {
+    const r = await one('SELECT p.receipt_no, p.amount, p.payment_date, c.name FROM payments p JOIN clients c ON c.id = p.client_id WHERE p.id = ?', [id]);
+    return r && { label: 'Payment Receipt', number: r.receipt_no, party: r.name, date: r.payment_date, total: r.amount, status: 'paid' };
+  }
+  if (type === 'payslip') {
+    const p = await one('SELECT p.month, p.year, p.net_pay, p.status, e.name FROM payslips p JOIN employees e ON e.id = p.employee_id WHERE p.id = ?', [id]);
+    return p && { label: 'Payslip', number: `${p.month}/${p.year}`, party: p.name, total: p.net_pay, status: p.status };
+  }
+  if (type === 'vault') {
+    const d = await one('SELECT v.title, v.category, v.file, v.document_date, c.name FROM vault_documents v LEFT JOIN clients c ON c.id = v.client_id WHERE v.id = ?', [id]);
+    return d && { label: 'Document', number: d.title, title: d.title, party: d.name, date: d.document_date, is_pdf: /\.pdf$/i.test(d.file) };
+  }
+  return null;
+}
+
+function checkShare(req) {
+  const { type, id, token } = req.params;
+  if (!SHARE_TYPES.includes(type) || !verifyDocToken(type, id, token)) throw new HttpError(403, 'This link is invalid or has expired');
+}
+
+router.get(
+  '/share/:type/:id/:token',
+  asyncHandler(async (req, res) => {
+    checkShare(req);
+    const { type, id, token } = req.params;
+    const meta = await shareMeta(type, id);
+    if (!meta) throw new HttpError(404, 'Document not found');
+    const s = await getSettings();
+    // first view → let the team know (staff previews are logged in and use other routes)
+    if (['invoice', 'quotation', 'contract'].includes(type) && !meta.viewed_at && !req.query.preview) {
+      const table = { invoice: 'invoices', quotation: 'quotations', contract: 'contracts' }[type];
+      await query(`UPDATE ${table} SET viewed_at = NOW() WHERE id = ? AND viewed_at IS NULL`, [id]);
+      fire(notifyRoles(['accounts'], { title: `👀 ${meta.party} opened ${meta.label} ${meta.number}`, body: 'The client viewed the shared link.', link: `/admin/${type === 'contract' ? 'contracts' : `${type}s`}/${id}`, type: 'viewed' }));
+    }
+    delete meta.viewed_at;
+    res.json({
+      ...meta,
+      type,
+      pdf_url: `/api/public/documents/${type}/${id}/${token}`,
+      company: {
+        name: s.company_name, logo: s.logo, phone: s.phone, email: s.email, whatsapp: s.whatsapp_number, address: s.address, site_url: s.site_url,
+        // payment details only on invoices
+        ...(type === 'invoice' ? { upi_id: s.upi_id, bank_account_holder: s.bank_account_holder, bank_name: s.bank_name, bank_account_number: s.bank_account_number, bank_ifsc: s.bank_ifsc, bank_branch: s.bank_branch } : {}),
+      },
+    });
+  })
+);
+
+router.post(
+  '/share/:type/:id/:token/accept',
+  formLimiter,
+  asyncHandler(async (req, res) => {
+    checkShare(req);
+    const { type, id } = req.params;
+    const name = String(req.body.name || '').trim();
+    if (!['quotation', 'contract'].includes(type)) throw new HttpError(400, 'This document cannot be accepted online');
+    if (name.length < 3) throw new HttpError(400, 'Please type your full name to accept');
+    if (!req.body.agree) throw new HttpError(400, 'Please confirm that you agree to the terms');
+    const table = type === 'quotation' ? 'quotations' : 'contracts';
+    const r = await query(
+      `UPDATE ${table} SET status = 'accepted', accepted_by = ?, accepted_at = NOW(), accepted_ip = ? WHERE id = ? AND status IN ('draft','sent')`,
+      [name.slice(0, 150), clientIp(req), id]
+    );
+    if (!r.affectedRows) throw new HttpError(400, 'This document has already been accepted or is no longer open');
+    const meta = await shareMeta(type, id);
+    fire(notifyRoles(['accounts'], { title: `🎉 ${meta.label} ${meta.number} accepted`, body: `Accepted online by ${name} (${meta.party})`, link: `/admin/${type === 'contract' ? 'contracts' : 'quotations'}/${id}`, type: 'accepted' }));
+    notifyAdmins(`${meta.label} ${meta.number} accepted by ${esc(name)}`, `<p><b>${esc(meta.party)}</b> accepted ${meta.label.toLowerCase()} <b>${esc(meta.number)}</b> online.</p><p>Accepted by: ${esc(name)}<br>IP: ${esc(clientIp(req))}</p>`).catch(() => {});
+    res.json({ message: `Thank you! The ${meta.label.toLowerCase()} has been accepted.` });
+  })
+);
+
 // ------------------------------------------------------------------ shared documents (signed link)
 router.get(
   '/documents/:type/:id/:token',
@@ -203,8 +303,8 @@ router.get(
     const { type, id, token } = req.params;
     if (!verifyDocToken(type, id, token)) throw new HttpError(403, 'Invalid or expired link');
     const doc = await buildDocument(type, id);
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `inline; filename="${doc.filename}"`);
+    res.setHeader('Content-Type', doc.contentType || 'application/pdf');
+    res.setHeader('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="${doc.filename}"`);
     res.send(doc.buffer);
   })
 );

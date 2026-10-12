@@ -9,6 +9,7 @@ import { TaskBoard, DailyReports } from './pages/admin/Work';
 import { MyAttendance, MyLeaves, MyPayslips, MyLetters } from './pages/admin/My';
 import { Settings, Users, Logs, Profile } from './pages/admin/System';
 import { NotFound } from './pages/site/Pages';
+import { Contracts, ContractForm, ContractTemplates, Vault, ProjectView } from './pages/admin/Contracts';
 
 const ACC = ['accounts'];
 const HR = ['hr'];
@@ -45,6 +46,14 @@ export default function AdminRoutes() {
         <Route path="billing-items" element={guard(ACC, <BillingItems />)} />
         <Route path="expenses" element={guard(ACC, <Expenses />)} />
         <Route path="enquiries" element={guard(ACC, <Enquiries />)} />
+
+        {/* contracts & vault */}
+        <Route path="contracts" element={guard(ACC, <Contracts />)} />
+        <Route path="contracts/new" element={guard(ACC, <ContractForm />)} />
+        <Route path="contracts/:id" element={guard(ACC, <ContractForm />)} />
+        <Route path="contract-templates" element={guard(ACC, <ContractTemplates />)} />
+        <Route path="vault" element={guard([...ACC, ...HR], <Vault />)} />
+        <Route path="projects/:id" element={guard([...ACC, ...HR], <ProjectView />)} />
 
         {/* HR */}
         <Route path="employees" element={guard(HR, <Employees />)} />

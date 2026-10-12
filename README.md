@@ -8,6 +8,10 @@ A complete, fully dynamic replacement for the old PHP website of **YJTECHNOSOFT 
 * **Recruitment** – job openings on the careers page, online applications with resume upload, hiring pipeline.
 * **Documents on your letterhead** – invoices, quotations, receipts, payslips, internship offer letters, offer/appointment/joining/experience/relieving letters. All PDFs use the same letterhead as your existing invoices.
 * **Email, SMS & WhatsApp** – send any document or message from the panel. Every message is logged.
+* **Contracts & agreements** – website, software, AMC, hosting, NDA and consultant agreements from templates. Clients can accept them online.
+* **Documents vault** – private storage for agreements, work orders, proposals, KYC and certificates, linked to clients and projects.
+* **One-click sharing** – invoices, bills, quotations, receipts, agreements and letters can be shared on WhatsApp or email. Each share opens a branded page with a UPI QR and online acceptance.
+* **Push notifications** – browser and mobile push plus an in-app notification bell for leads, payments, acceptances, leave, tasks and renewals.
 
 | Layer    | Tech |
 |----------|------|
@@ -44,7 +48,7 @@ Open **http://localhost:5173** for the website and **http://localhost:5173/login
 
 > **Change the admin password right after the first login** (top-right menu › My profile).
 
-`npm run setup` is safe to run again. It creates missing tables and default rows, and never overwrites data you changed.
+`npm run setup` is safe to run again. It creates missing tables, adds new columns when you update the code (migrations), and inserts default rows. It never overwrites data you changed. **Run it after every update.**
 
 ---
 
@@ -136,12 +140,41 @@ Website forms:
 * **Letters** – choose an employee or candidate and a template. The details fill in automatically, and the form asks for any extra fields such as duration or acceptance date. You can edit the result in the rich-text editor, then **Save & send**.
   Built-in templates: Internship Offer, Offer, Appointment, Joining, Internship Completion Certificate, Experience, Relieving. Add your own in **Letter Templates** using placeholders such as `{{name}} {{designation}} {{joining_date}} {{stipend}} {{ctc}} {{duration}}`. Any new `{{placeholder}}` automatically becomes an input field.
 
+### Sharing invoices, bills & quotations (email / WhatsApp)
+Every invoice, quotation, receipt, agreement, letter and vault file has a **Share** menu:
+* **WhatsApp** – opens WhatsApp with the client's number, the message and the share link.
+* **Email (your mail app)** – opens Gmail/Outlook with the subject, message and link.
+* **Send with PDF attached** – sends through the configured SMTP / WhatsApp API / SMS with the PDF attached, and logs it.
+* **Copy share link**, **Open client view**, and native mobile share.
+
+The share link opens a branded page (`/d/...`) for the client, with:
+* a summary of the document and its line items, PDF download and print;
+* for invoices, a **UPI QR code** with the balance pre-filled, a "Pay with UPI app" button and bank details;
+* for quotations and agreements, an **"Accept"** form. The client types their name to accept, and the name, time and IP are recorded and printed on the agreement PDF;
+* a WhatsApp, call and email contact box.
+
+The team gets a notification when a client **opens** an invoice, quotation or agreement, and when they **accept** one.
+
+### Contracts, agreements & documents vault
+* **Agreements** – choose a client/project and a template, and the party details fill in automatically. Fill the extra fields (scope, payment terms, support period…), click **Generate**, then edit in the rich-text editor.
+  * The PDF has the agreement number, a parties box, both signature blocks, page numbers and the online-acceptance stamp.
+  * Mark it as sent, signed, active or terminated, upload the signed scan, and **Renew** for the next period.
+  * Reminders go out 30/15/7/1 days before the end date.
+* **Agreement templates** – Website Development, Software Development & Service, AMC, Hosting & Domain, NDA, and Freelancer/Consultant. Add or edit your own. Any `{{field}}` becomes an input, and fields left empty print as `__________`.
+* **Documents vault** – upload any file (PDF, images, Word, Excel), categorise and tag it, link it to a client, project or agreement, and set an expiry date. Files can only be opened by logged-in staff, or through a signed share link.
+* **Project page** (Projects › Open) – tasks, team, agreements, documents, quotations and invoices for the project in one place. Invoices and quotations can be linked to a project.
+
+### Push notifications
+* Click the **bell** in the admin header and choose **Enable push notifications**. This works per device and browser, including Android Chrome and installed iOS web apps.
+* Users are notified of: new leads and quote requests, job applications, leave requests and decisions, task assignments and comments, payments received, clients viewing or accepting documents, expiring servers and agreements, and announcements.
+* VAPID keys are generated automatically on first use. Web push needs the site on **HTTPS** (localhost works for testing).
+
 ### Roles
 | Role | Access |
 |------|--------|
 | Admin | Everything, including website CMS, settings, users and message logs |
-| HR | Employees, attendance, leaves, payroll, recruitment, letters, projects and tasks |
-| Accounts | Clients, quotations, invoices, payments, servers, expenses, leads and payroll |
+| HR | Employees, attendance, leaves, payroll, recruitment, letters, projects, tasks and the vault |
+| Accounts | Clients, quotations, invoices, payments, servers, expenses, leads, payroll, agreements and the vault |
 | Employee | Self-service portal: check-in/out, attendance calendar, leaves, tasks, daily reports, payslips, letters |
 
 Any HR, accounts or admin user who is linked to an employee profile also gets the self-service menu.
@@ -167,6 +200,6 @@ server/
 
 ## 6. Security notes
 * Use a long random `JWT_SECRET` and HTTPS in production.
-* Resumes, employee documents and expense receipts are served only to logged-in admin/HR/accounts users.
+* Resumes, employee documents, expense receipts and vault files are served only to logged-in admin/HR/accounts users, or through signed share links.
 * Server/hosting passwords saved under **Servers & Domains** are stored in the database as entered. Restrict who has the Accounts/Admin role, and keep database backups secure.
 * Take regular backups of the MySQL database and the `server/uploads` folder.

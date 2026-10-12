@@ -8,6 +8,7 @@ const { getSettings } = require('../utils/settings');
 const { sendEmail, sendWhatsApp, notifyAdmins } = require('./notify');
 const { formatDate, formatMoney } = require('../utils/helpers');
 const { sendDocument } = require('./documents');
+const { notifyRoles } = require('./push');
 
 async function serverReminders() {
   const s = await getSettings();
@@ -26,12 +27,20 @@ async function serverReminders() {
     await query('UPDATE client_servers SET last_reminder_on = CURDATE() WHERE id = ?', [r.id]);
   }
   if (due.length) {
+    await notifyRoles(['accounts'], { title: `⏰ ${due.length} service(s) expiring soon`, body: due.map((r) => `${r.domain || r.name} (${r.days_left}d)`).join(', ').slice(0, 300), link: '/admin/servers', type: 'renewal' });
     await notifyAdmins(
       `${due.length} service(s) expiring soon`,
       `<p>Renewal reminders were sent for:</p><ul>${due.map((r) => `<li>${r.client_name} – ${r.name} ${r.domain || ''} – ${formatDate(r.expiry_date)} (${r.days_left} days)</li>`).join('')}</ul>`
     );
   }
   await query("UPDATE client_servers SET status = 'expired' WHERE status = 'active' AND expiry_date < DATE_SUB(CURDATE(), INTERVAL 7 DAY)");
+}
+
+async function contractReminders() {
+  const rows = await query("SELECT id, contract_no, title, party_name, end_date, DATEDIFF(end_date, CURDATE()) AS days_left FROM contracts WHERE status IN ('signed','active','accepted') AND end_date IS NOT NULL AND DATEDIFF(end_date, CURDATE()) IN (30, 15, 7, 1)");
+  for (const k of rows) {
+    await notifyRoles(['accounts'], { title: `📄 Agreement ending in ${k.days_left} day(s)`, body: `${k.contract_no} – ${k.title} (${k.party_name})`, link: `/admin/contracts/${k.id}`, type: 'contract' });
+  }
 }
 
 async function invoiceReminders() {
@@ -52,7 +61,7 @@ async function birthdays() {
 }
 
 async function runDaily() {
-  for (const job of [serverReminders, invoiceReminders, birthdays]) {
+  for (const job of [serverReminders, contractReminders, invoiceReminders, birthdays]) {
     try {
       await job();
     } catch (e) {

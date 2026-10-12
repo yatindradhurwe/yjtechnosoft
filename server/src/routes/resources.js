@@ -10,6 +10,8 @@
  * roles      – roles allowed to write (admin is always allowed)
  * readRoles  – roles allowed to read (defaults to roles); 'all' = any logged-in user
  */
+const { notifyAll } = require('../services/push');
+
 const CMS = ['admin'];
 const ACCOUNTS = ['accounts'];
 const HR = ['hr'];
@@ -157,6 +159,28 @@ const resources = {
     roles: ACCOUNTS,
   },
 
+  contract_templates: {
+    table: 'contract_templates',
+    fields: ['name', 'type', 'title', 'body', 'status'],
+    search: ['name', 'title'],
+    filters: ['type'],
+    order: 'id ASC',
+    roles: ACCOUNTS,
+  },
+  vault_documents: {
+    table: 'vault_documents',
+    select: `vault_documents.*, c.name AS client_name, p.name AS project_name, k.contract_no, u.name AS uploaded_by_name,
+      DATEDIFF(vault_documents.expiry_date, CURDATE()) AS days_left`,
+    joins: `LEFT JOIN clients c ON c.id = vault_documents.client_id LEFT JOIN projects p ON p.id = vault_documents.project_id
+      LEFT JOIN contracts k ON k.id = vault_documents.contract_id LEFT JOIN users u ON u.id = vault_documents.uploaded_by`,
+    fields: ['title', 'category', 'file', 'file_name', 'client_id', 'project_id', 'contract_id', 'document_date', 'expiry_date', 'tags', 'notes'],
+    search: ['vault_documents.title', 'vault_documents.tags', 'c.name', 'p.name'],
+    filters: ['category', 'client_id', 'project_id', 'contract_id'],
+    order: 'vault_documents.id DESC',
+    roles: ['accounts', 'hr'],
+    stampUser: 'uploaded_by',
+  },
+
   // ----------------------------------------------------------- HR masters
   departments: {
     table: 'departments',
@@ -214,6 +238,9 @@ const resources = {
     order: 'id DESC',
     roles: HR,
     readRoles: 'all',
+    afterCreate: (d, user) =>
+      d.status !== 'inactive' &&
+      notifyAll({ title: `📢 ${d.title}`, body: d.message, link: '/admin', type: 'announcement' }, { excludeUserId: user.id }),
   },
   job_openings: {
     table: 'job_openings',

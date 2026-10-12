@@ -6,6 +6,8 @@ const { round2, toDateStr, pick } = require('../utils/helpers');
 const { nextNumber } = require('../utils/numbering');
 const { getSettings } = require('../utils/settings');
 const { loadInvoice, loadQuotation } = require('../services/documents');
+const { notifyRoles, fire } = require('../services/push');
+const { formatMoney } = require('../utils/helpers');
 
 const router = express.Router();
 router.use(authenticate, authorize('accounts'));
@@ -90,6 +92,7 @@ async function saveQuotation(req, id) {
     quote_date: b.quote_date || toDateStr(),
     valid_until: b.valid_until || null,
     subject: b.subject || null,
+    project_id: b.project_id || null,
     notes: b.notes || null,
     terms: b.terms ?? s.quotation_terms ?? null,
     status: b.status || 'draft',
@@ -151,6 +154,7 @@ router.post(
           invoice_no,
           client_id: qt.client_id,
           quotation_id: qt.id,
+          project_id: qt.project_id || null,
           invoice_date: today,
           due_date: toDateStr(due),
           subject: qt.subject,
@@ -219,6 +223,7 @@ async function saveInvoice(req, id) {
     invoice_date: b.invoice_date || toDateStr(),
     due_date: b.due_date || null,
     subject: b.subject || null,
+    project_id: b.project_id || null,
     notes: b.notes || null,
     terms: b.terms ?? s.invoice_terms ?? null,
     server_id: b.server_id || null,
@@ -314,7 +319,14 @@ router.post(
       await refreshInvoice(q, inv.id);
       return r.insertId;
     });
-    res.status(201).json({ id: pid, invoice: await loadInvoice(inv.id) });
+    const updated = await loadInvoice(inv.id);
+    fire(notifyRoles(['accounts'], {
+      title: `💰 Payment received – Rs. ${formatMoney(amount)}`,
+      body: `${updated.client.name} · ${updated.invoice_no} (${updated.status})`,
+      link: `/admin/invoices/${inv.id}`,
+      type: 'payment',
+    }, { excludeUserId: req.user.id }));
+    res.status(201).json({ id: pid, invoice: updated });
   })
 );
 

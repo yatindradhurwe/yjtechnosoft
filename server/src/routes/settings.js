@@ -49,7 +49,7 @@ router.post(
 );
 
 // ------------------------------------------------------------------ uploads
-const FOLDERS = ['general', 'website', 'blog', 'team', 'portfolio', 'clients', 'employees', 'documents', 'receipts', 'settings', 'avatars'];
+const FOLDERS = ['general', 'website', 'blog', 'team', 'portfolio', 'clients', 'employees', 'documents', 'receipts', 'settings', 'avatars', 'vault'];
 router.post(
   '/upload',
   (req, res, next) => {

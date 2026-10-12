@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  Plus, Trash2, FileDown, Send, Printer, Pencil, ArrowRightLeft, Receipt, FileSpreadsheet, Wallet, IndianRupee, AlertCircle, CheckCircle2, Eye, ArrowLeft, Ban } from 'lucide-react';
+  Plus, Trash2, FileDown, Printer, Pencil, ArrowRightLeft, Receipt, FileSpreadsheet, Wallet, IndianRupee, AlertCircle, CheckCircle2, Eye, ArrowLeft, Ban } from 'lucide-react';
 import api, { errMsg, openPdf } from '../../lib/api';
 import useFetch from '../../lib/useFetch';
 import { addDays, fmtDate, money, today, titleCase } from '../../lib/utils';
 import { PageHeader, SearchInput, Pagination, StatusBadge, Spinner, Modal, Field, StatCard, useConfirm, PageLoader, Tabs } from '../../components/ui';
 import DataTable from '../../components/ui/DataTable';
-import SendDialog from '../../components/ui/SendDialog';
+import ShareMenu from '../../components/ui/ShareMenu';
 
 const round2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 
@@ -28,7 +28,6 @@ function BillingList({ kind }) {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
   const { data, loading, reload } = useFetch(isInv ? '/billing/invoices' : '/billing/quotations', { page, q, status });
-  const [sendFor, setSendFor] = useState(null);
   const statuses = isInv ? ['', 'unpaid', 'partial', 'paid', 'overdue', 'draft', 'cancelled'] : ['', 'draft', 'sent', 'accepted', 'rejected', 'converted'];
 
   return (
@@ -73,16 +72,13 @@ function BillingList({ kind }) {
             render: (r) => (
               <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                 <button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" title="PDF" onClick={() => openPdf(kind, r.id)}><FileDown className="h-4 w-4" /></button>
-                <button className="rounded-lg p-2 text-brand-600 hover:bg-brand-50" title="Send" onClick={() => setSendFor(r)}><Send className="h-4 w-4" /></button>
+                <ShareMenu type={kind} id={r.id} compact onSent={reload} />
               </div>
             ),
           },
         ]}
         footer={<Pagination page={page} total={data?.total} limit={data?.limit || 20} onChange={setPage} />}
       />
-      {sendFor && (
-        <SendDialog open onClose={() => setSendFor(null)} type={kind} id={sendFor.id} email={sendFor.client_email} phone={sendFor.client_phone} title={`Send ${isInv ? sendFor.invoice_no : sendFor.quote_no}`} onSent={reload} />
-      )}
     </div>
   );
 }
@@ -101,6 +97,7 @@ function DocForm({ kind }) {
   const { data: clients } = useFetch('/admin/clients', { all: 1, status: 'active' });
   const { data: catalog } = useFetch('/admin/billing_items', { all: 1, status: 'active' });
   const { data: settings } = useFetch('/settings');
+  const { data: projects } = useFetch('/admin/projects', { all: 1 });
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [newClient, setNewClient] = useState(null);
@@ -121,6 +118,7 @@ function DocForm({ kind }) {
         const d = today();
         setForm({
           client_id: params.get('client') || '',
+          project_id: params.get('project') || '',
           number: data.number,
           date: d,
           due: addDays(d, isInv ? 15 : 30),
@@ -152,6 +150,7 @@ function DocForm({ kind }) {
     try {
       const body = {
         client_id: form.client_id,
+        project_id: form.project_id || null,
         subject: form.subject,
         discount: form.discount,
         notes: form.notes,
@@ -216,8 +215,14 @@ function DocForm({ kind }) {
                 </button>
               </div>
             </Field>
-            <Field label="Subject / Project">
+            <Field label="Subject">
               <input className="input" value={form.subject || ''} onChange={(e) => setForm({ ...form, subject: e.target.value })} placeholder="e.g. Website development" />
+            </Field>
+            <Field label="Project (optional)">
+              <select className="input" value={form.project_id || ''} onChange={(e) => setForm({ ...form, project_id: e.target.value })}>
+                <option value="">—</option>
+                {(projects?.data || []).filter((p) => !form.client_id || String(p.client_id) === String(form.client_id)).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
             </Field>
           </div>
           {client && (
@@ -367,7 +372,6 @@ function DocView({ kind }) {
   const confirm = useConfirm();
   const base = isInv ? '/billing/invoices' : '/billing/quotations';
   const { data: d, loading, reload } = useFetch(`${base}/${id}`);
-  const [send, setSend] = useState(false);
   const [pay, setPay] = useState(null);
   const [busy, setBusy] = useState(false);
   if (loading || !d) return <PageLoader />;
@@ -429,11 +433,15 @@ function DocView({ kind }) {
             <StatusBadge status={d.status} />
           </div>
           <p className="mt-1 text-sm text-slate-500">{d.client.name} · {fmtDate(isInv ? d.invoice_date : d.quote_date)}</p>
+          <div className="mt-2 flex flex-wrap gap-2 text-xs">
+            {d.viewed_at ? <span className="rounded-full bg-sky-50 px-2.5 py-1 font-medium text-sky-700">👀 Viewed by client {fmtDate(d.viewed_at)}</span> : <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-500">Not opened by client yet</span>}
+            {d.accepted_by && <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">✅ Accepted online by {d.accepted_by} on {fmtDate(d.accepted_at)}</span>}
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button className="btn-outline" onClick={() => openPdf(kind, id)}><Eye className="h-4 w-4" /> Preview</button>
           <button className="btn-outline" onClick={() => openPdf(kind, id, true)}><FileDown className="h-4 w-4" /> Download</button>
-          <button className="btn-primary" onClick={() => setSend(true)}><Send className="h-4 w-4" /> Send</button>
+          <ShareMenu type={kind} id={id} onSent={reload} />
           {isInv && balance > 0 && d.status !== 'cancelled' && (
             <button className="btn-accent" onClick={() => setPay({ amount: balance, payment_date: today(), mode: 'bank_transfer', reference: '', notes: '' })}>
               <Wallet className="h-4 w-4" /> Record payment
@@ -543,7 +551,6 @@ function DocView({ kind }) {
         </div>
       </div>
 
-      <SendDialog open={send} onClose={() => setSend(false)} type={kind} id={id} email={d.client.email} phone={d.client.whatsapp || d.client.phone} title={`Send ${number}`} onSent={reload} />
       <Modal
         open={!!pay}
         onClose={() => setPay(null)}
@@ -579,7 +586,6 @@ export function Payments() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const { data, loading } = useFetch('/billing/payments', { page, q, from, to });
-  const [send, setSend] = useState(null);
   return (
     <div>
       <PageHeader title="Payments" subtitle="All payments received against invoices" icon={Wallet} />
@@ -600,11 +606,10 @@ export function Payments() {
           { key: 'mode', label: 'Mode', render: (r) => titleCase(r.mode) },
           { key: 'reference', label: 'Reference' },
           { key: 'amount', label: 'Amount', render: (r) => <b className="text-emerald-700">{money(r.amount)}</b> },
-          { key: 'a', label: '', render: (r) => <div className="flex justify-end gap-1"><button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" onClick={() => openPdf('receipt', r.id)}><Printer className="h-4 w-4" /></button><button className="rounded-lg p-2 text-brand-600 hover:bg-brand-50" onClick={() => setSend(r)}><Send className="h-4 w-4" /></button></div> },
+          { key: 'a', label: '', render: (r) => <div className="flex justify-end gap-1"><button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" onClick={() => openPdf('receipt', r.id)}><Printer className="h-4 w-4" /></button><ShareMenu type="receipt" id={r.id} compact /></div> },
         ]}
         footer={<Pagination page={page} total={data?.total} limit={data?.limit || 20} onChange={setPage} />}
       />
-      {send && <SendDialog open onClose={() => setSend(null)} type="receipt" id={send.id} title={`Send receipt ${send.receipt_no}`} />}
     </div>
   );
 }

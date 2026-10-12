@@ -564,4 +564,83 @@ async function receiptPdf(r) {
   return toBuffer(doc);
 }
 
-module.exports = { billingPdf, letterPdf, payslipPdf, receiptPdf, parseHtml };
+// ---------------------------------------------------------------------------
+// Contract / agreement
+// ---------------------------------------------------------------------------
+function partyBox(doc, x, y, w, heading, lines) {
+  doc.font('semibold').fontSize(8.5).fillColor(COLOR.blue).text(heading.toUpperCase(), x + 10, y + 8, { width: w - 20, characterSpacing: 0.6 });
+  doc.font('bold').fontSize(10).fillColor(COLOR.text).text(lines[0] || '', x + 10, doc.y + 2, { width: w - 20 });
+  const rest = lines.slice(1).filter(Boolean).join('\n');
+  if (rest) doc.font('regular').fontSize(8.5).fillColor(COLOR.muted).text(rest, x + 10, doc.y + 1, { width: w - 20, lineGap: 1 });
+  return doc.y + 8;
+}
+
+async function contractPdf(c) {
+  const { doc, settings: s } = await createDoc({ title: c.title });
+  doc.y = BOX.top + 6;
+  doc.font('medium').fontSize(9.5).fillColor(COLOR.text).text(`Agreement No: ${c.contract_no}`, BOX.left, doc.y, { width: WIDTH / 2 });
+  doc.text(`Date: ${formatDate(c.agreement_date)}`, BOX.left + WIDTH / 2, doc.y - 13.5, { width: WIDTH / 2, align: 'right' });
+  doc.x = BOX.left;
+  doc.moveDown(0.8);
+  title(doc, c.title);
+
+  // parties
+  const y0 = doc.y;
+  const half = WIDTH / 2 - 6;
+  const left = partyBox(doc, BOX.left, y0, half, 'Service Provider', [s.company_name, s.address, [s.phone, s.email].filter(Boolean).join(' · '), s.gstin && `GSTIN: ${s.gstin}`, s.cin && `CIN: ${s.cin}`]);
+  const right = partyBox(doc, BOX.left + half + 12, y0, half, 'Client', [c.party_name, c.party_representative && `Through: ${c.party_representative}`, c.party_address, [c.party_phone, c.party_email].filter(Boolean).join(' · ')]);
+  const h = Math.max(left, right) - y0;
+  doc.save();
+  doc.roundedRect(BOX.left, y0, half, h, 8).lineWidth(0.8).strokeColor(COLOR.border).stroke();
+  doc.roundedRect(BOX.left + half + 12, y0, half, h, 8).lineWidth(0.8).strokeColor(COLOR.border).stroke();
+  doc.restore();
+  doc.x = BOX.left;
+  doc.y = y0 + h + 8;
+
+  const meta = [
+    c.start_date && `Term: ${formatDate(c.start_date)}${c.end_date ? ` to ${formatDate(c.end_date)}` : ''}`,
+    Number(c.contract_value) ? `Contract value: Rs. ${formatMoney(c.contract_value)} /-` : null,
+  ].filter(Boolean);
+  if (meta.length) {
+    doc.font('semibold').fontSize(9.5).fillColor(COLOR.text).text(meta.join('     |     '), BOX.left, doc.y, { width: WIDTH });
+    doc.moveDown(0.3);
+  }
+  yellowRule(doc);
+  renderHtml(doc, c.body, { size: 10 });
+
+  // signatures
+  ensureSpace(doc, 140);
+  doc.moveDown(0.5);
+  doc.font('regular').fontSize(9.5).fillColor(COLOR.text).text('IN WITNESS WHEREOF, the parties have executed this Agreement on the date first written above.', BOX.left, doc.y, { width: WIDTH });
+  const sy = doc.y + 14;
+  const sig = resolveUpload(s.signature_image);
+  const stamp = resolveUpload(s.stamp_image);
+  doc.font('semibold').fontSize(9.5).text(`For ${s.company_name || 'Service Provider'}`, BOX.left, sy, { width: half });
+  if (stamp) doc.image(stamp, BOX.left + 120, sy + 14, { fit: [64, 48] });
+  if (sig) doc.image(sig, BOX.left, sy + 18, { fit: [110, 40] });
+  doc.moveTo(BOX.left, sy + 66).lineTo(BOX.left + 170, sy + 66).lineWidth(0.6).strokeColor(COLOR.muted).stroke();
+  doc.font('medium').fontSize(9).fillColor(COLOR.text).text(s.signatory_name || 'Authorised Signatory', BOX.left, sy + 70, { width: half });
+  if (s.signatory_designation) doc.font('regular').fontSize(8.5).fillColor(COLOR.muted).text(s.signatory_designation, BOX.left, doc.y, { width: half });
+
+  const rx = BOX.left + half + 12;
+  doc.font('semibold').fontSize(9.5).fillColor(COLOR.text).text(`For ${c.party_name}`, rx, sy, { width: half });
+  if (c.accepted_at) {
+    doc.roundedRect(rx, sy + 16, 200, 44, 6).fill('#ecfdf5');
+    doc.font('semibold').fontSize(8.5).fillColor('#047857').text('DIGITALLY ACCEPTED ONLINE', rx + 8, sy + 21, { width: 184 });
+    doc.font('regular').fontSize(7.5).fillColor('#065f46').text(`by ${c.accepted_by} on ${formatDate(c.accepted_at)} ${String(c.accepted_at).slice(11, 16)}${c.accepted_ip ? `\nIP ${c.accepted_ip}` : ''}`, rx + 8, doc.y, { width: 184 });
+  }
+  doc.moveTo(rx, sy + 66).lineTo(rx + 170, sy + 66).lineWidth(0.6).strokeColor(COLOR.muted).stroke();
+  doc.font('medium').fontSize(9).fillColor(COLOR.text).text(c.party_representative || c.party_name, rx, sy + 70, { width: half });
+  doc.font('regular').fontSize(8.5).fillColor(COLOR.muted).text('Authorised Signatory', rx, doc.y, { width: half });
+
+  // page numbers
+  const range = doc.bufferedPageRange();
+  for (let i = range.start; i < range.start + range.count; i++) {
+    doc.switchToPage(i);
+    doc.page.margins.bottom = 0; // writing in the footer band must not create a new page
+    doc.font('regular').fontSize(7.5).fillColor(COLOR.muted).text(`${c.contract_no}  ·  Page ${i + 1} of ${range.count}`, BOX.left, BOX.bottom + 4, { width: WIDTH, align: 'right', lineBreak: false });
+  }
+  return toBuffer(doc);
+}
+
+module.exports = { billingPdf, letterPdf, payslipPdf, receiptPdf, contractPdf, parseHtml };

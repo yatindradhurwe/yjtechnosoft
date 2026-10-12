@@ -11,6 +11,7 @@ const CONFIG = {
   quotation: { table: 'quotations', column: 'quote_no', key: 'quotation_prefix', def: 'YJ/QT' },
   receipt: { table: 'payments', column: 'receipt_no', key: 'receipt_prefix', def: 'YJ/RCPT' },
   letter: { table: 'letters', column: 'letter_no', key: 'letter_prefix', def: 'YJ/HR' },
+  contract: { table: 'contracts', column: 'contract_no', key: 'contract_prefix', def: 'YJ/AGR' },
 };
 
 async function nextNumber(kind, date = new Date(), q = null) {

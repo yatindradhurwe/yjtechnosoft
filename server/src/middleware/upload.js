@@ -37,7 +37,7 @@ function makeUploader(folder = 'misc', { maxMb = 10, allow = [...IMAGE_EXT, ...D
 
 const fileUrl = (folder, file) => (file ? `/uploads/${folder}/${file.filename}` : null);
 
-const PRIVATE_FOLDERS = ['resumes', 'documents', 'receipts'];
+const PRIVATE_FOLDERS = ['resumes', 'documents', 'receipts', 'vault'];
 
 /** Blocks anonymous access to private upload folders (token via ?token= or Authorization header) */
 function privateUploads(req, res, next) {

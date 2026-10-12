@@ -9,6 +9,7 @@ import { asset, cn, fmtDate, titleCase, today, waLink } from '../../lib/utils';
 import { PageHeader, SearchInput, StatusBadge, Spinner, Modal, Field, PageLoader, RichEditor, useConfirm, EmptyState } from '../../components/ui';
 import DataTable from '../../components/ui/DataTable';
 import SendDialog from '../../components/ui/SendDialog';
+import ShareMenu from '../../components/ui/ShareMenu';
 
 const STAGES = ['applied', 'shortlisted', 'interview', 'selected', 'offered', 'hired', 'rejected'];
 const STAGE_COLOR = { applied: 'border-t-slate-400', shortlisted: 'border-t-indigo-500', interview: 'border-t-sky-500', selected: 'border-t-violet-500', offered: 'border-t-fuchsia-500', hired: 'border-t-emerald-500', rejected: 'border-t-red-500' };
@@ -329,7 +330,7 @@ export function Letters() {
             key: 'a', label: '', render: (r) => (
               <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
                 <button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" onClick={() => openPdf('letter', r.id)}><Eye className="h-4 w-4" /></button>
-                <button className="rounded-lg p-2 text-brand-600 hover:bg-brand-50" onClick={() => setSend(r)}><Send className="h-4 w-4" /></button>
+                <ShareMenu type="letter" id={r.id} compact onSent={reload} />
                 <button className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" onClick={() => del(r)}><Trash2 className="h-4 w-4" /></button>
               </div>
             ),

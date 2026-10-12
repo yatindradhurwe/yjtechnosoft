@@ -6,6 +6,7 @@ const { asyncHandler, HttpError } = require('../middleware/error');
 const { pick, toDateStr, toDateTimeStr, round2, formatDate } = require('../utils/helpers');
 const { getSettings } = require('../utils/settings');
 const { sendEmail, notifyAdmins } = require('../services/notify');
+const { notifyRoles, notifyEmployee, fire } = require('../services/push');
 
 const router = express.Router();
 router.use(authenticate);
@@ -392,6 +393,7 @@ router.post(
     if (!days) throw new HttpError(400, 'Selected dates fall on holidays / weekly offs');
     const r = await query('INSERT INTO leave_requests SET ?', [{ employee_id: empId, leave_type_id, from_date, to_date: to, half_day: half_day ? 1 : 0, days, reason }]);
     const emp = await one('SELECT name FROM employees WHERE id = ?', [empId]);
+    fire(notifyRoles(['hr'], { title: `🗓️ Leave request – ${emp.name}`, body: `${days} day(s): ${formatDate(from_date)} to ${formatDate(to)}`, link: '/admin/leaves', type: 'leave' }, { excludeUserId: req.user.id }));
     notifyAdmins(
       `Leave request – ${emp.name}`,
       `<p><b>${emp.name}</b> applied for ${days} day(s) leave from ${formatDate(from_date)} to ${formatDate(to)}.</p><p>Reason: ${reason || '-'}</p>`
@@ -422,6 +424,14 @@ router.patch(
         await q("DELETE FROM attendance WHERE employee_id = ? AND date BETWEEN ? AND ? AND status IN ('leave') AND check_in IS NULL", [lr.employee_id, lr.from_date, lr.to_date]);
       }
     });
+    if (status !== 'pending') {
+      fire(notifyEmployee(lr.employee_id, {
+        title: status === 'approved' ? '✅ Leave approved' : '❌ Leave rejected',
+        body: `${lr.type_name}: ${formatDate(lr.from_date)} to ${formatDate(lr.to_date)}${remarks ? ` – ${remarks}` : ''}`,
+        link: '/admin/my/leaves',
+        type: 'leave',
+      }));
+    }
     if (lr.email && status !== 'pending') {
       sendEmail({
         to: lr.email,
