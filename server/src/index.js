@@ -1,6 +1,7 @@
 require('dotenv').config();
 // All attendance / invoice dates are local Indian time unless configured otherwise
 process.env.TZ = process.env.TZ || 'Asia/Kolkata';
+require('./config/urls').normaliseEnvUrls();
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
@@ -25,7 +26,15 @@ if (process.env.NODE_ENV !== 'test') app.use(morgan(process.env.NODE_ENV === 'pr
 app.use('/uploads', privateUploads, express.static(UPLOAD_ROOT, { maxAge: '7d' }));
 app.use('/assets', express.static(path.join(__dirname, '..', 'assets'), { maxAge: '30d' }));
 
-app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
+// Health check – open /api/health in the browser to see if the database is connected
+app.get('/api/health', async (req, res) => {
+  try {
+    await require('./config/db').query('SELECT 1 FROM users LIMIT 1');
+    res.json({ ok: true, database: 'connected', time: new Date().toISOString() });
+  } catch (e) {
+    res.status(503).json({ ok: false, database: 'error', error: `${e.code || ''} ${e.message}`.trim(), hint: 'Check DB_HOST, DB_NAME, DB_USER, DB_PASSWORD (or DATABASE_URL) and that the user has ALL PRIVILEGES on the database.' });
+  }
+});
 app.use('/api/public', require('./routes/public'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/dashboard', require('./routes/dashboard'));
@@ -53,17 +62,21 @@ const PORT = Number(process.env.PORT || 5000);
 if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 24)) {
   console.warn('⚠  Set a long random JWT_SECRET in server/.env before going live.');
 }
-async function start() {
-  // Create / upgrade tables automatically – no manual SQL import or admin login needed
-  if (process.env.AUTO_SETUP !== '0') {
-    try {
-      await require('../database/seed').setupDatabase({ quiet: true });
-      console.log('✔ Database ready');
-    } catch (e) {
-      console.error(`✖ Database setup failed: ${e.message}`);
-      console.error('  Check DB_HOST / DB_NAME / DB_USER / DB_PASSWORD (or DATABASE_URL) in server/.env');
-    }
+// Create / upgrade tables automatically – no manual SQL import or admin login needed.
+// If MySQL is not reachable yet (e.g. starts after the app), keep retrying every 30s.
+async function setupDb(attempt = 1) {
+  try {
+    await require('../database/seed').setupDatabase({ quiet: true });
+    console.log('✔ Database ready');
+  } catch (e) {
+    console.error(`✖ Database setup failed (attempt ${attempt}): ${e.code || ''} ${e.message}`);
+    console.error('  Check DB_HOST / DB_NAME / DB_USER / DB_PASSWORD (or DATABASE_URL) and that the user has ALL PRIVILEGES on the database.');
+    if (attempt < 20) setTimeout(() => setupDb(attempt + 1), 30000);
   }
+}
+
+async function start() {
+  if (process.env.AUTO_SETUP !== '0') await setupDb();
   app.listen(PORT, () => {
     console.log(`YJTechnosoft API running on http://localhost:${PORT}`);
     if (process.env.DISABLE_CRON !== '1') startCron();

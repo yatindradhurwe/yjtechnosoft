@@ -371,7 +371,9 @@ function DailyRegister() {
   const { data, loading, reload } = useFetch('/hr/attendance', { date });
   const [edits, setEdits] = useState({});
   const [saving, setSaving] = useState(false);
-  useEffect(() => setEdits({}), [date, data]);
+  useEffect(() => {
+    setEdits({});
+  }, [date, data]);
   const rows = data?.data || [];
   const val = (r, k) => (edits[r.employee_id]?.[k] !== undefined ? edits[r.employee_id][k] : k === 'check_in' || k === 'check_out' ? (r[k] ? String(r[k]).slice(11, 16) : '') : r[k] || '');
   const set = (r, k, v) => setEdits((e) => ({ ...e, [r.employee_id]: { ...e[r.employee_id], [k]: v } }));

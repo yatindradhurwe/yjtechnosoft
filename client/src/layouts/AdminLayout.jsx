@@ -180,7 +180,9 @@ export default function AdminLayout() {
   const [menu, setMenu] = useState(false);
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  useEffect(() => setMenu(false), [pathname]);
+  useEffect(() => {
+    setMenu(false);
+  }, [pathname]);
 
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(pathname)}`} replace />;

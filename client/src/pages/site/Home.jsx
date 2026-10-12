@@ -175,8 +175,16 @@ const PROCESS = [
 ];
 
 export default function Home() {
-  const { data, loading } = useFetch('/public/home');
+  const { data, loading, error } = useFetch('/public/home');
   const { settings: s } = useSite();
+  if (error && !data)
+    return (
+      <section className="container-x flex min-h-[50vh] flex-col items-center justify-center py-20 text-center">
+        <h1 className="text-2xl font-bold">We’ll be right back</h1>
+        <p className="mt-2 max-w-md text-slate-500">The website is being updated. Please try again in a few minutes.</p>
+        {s.phone && <a href={`tel:${s.phone}`} className="btn-primary mt-6">Call {s.phone}</a>}
+      </section>
+    );
   if (loading || !data) return <PageLoader />;
   const { sliders, services, portfolio, testimonials, partners, technologies, stats, pricing, faqs, blog } = data;
 

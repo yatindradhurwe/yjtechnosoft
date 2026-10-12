@@ -373,7 +373,10 @@ export function Seo({ title, description, image }) {
 
 export default function SiteLayout() {
   const { pathname } = useLocation();
-  useEffect(() => window.scrollTo(0, 0), [pathname]);
+  // Block body on purpose: newer Chrome returns a Promise from scrollTo, which React would treat as a cleanup
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
   return (
     <div className="flex min-h-screen flex-col">
       <Seo />

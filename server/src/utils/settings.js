@@ -1,4 +1,5 @@
 const { query } = require('../config/db');
+const { fixUrl } = require('../config/urls');
 
 let cache = null;
 let cacheAt = 0;
@@ -19,6 +20,7 @@ async function getSettings(force = false) {
   const rows = await query('SELECT `key`, `value` FROM settings');
   const out = {};
   rows.forEach((r) => (out[r.key] = r.value));
+  ['site_url', 'api_public_url'].forEach((k) => out[k] && (out[k] = fixUrl(out[k])));
   cache = out;
   cacheAt = Date.now();
   return out;

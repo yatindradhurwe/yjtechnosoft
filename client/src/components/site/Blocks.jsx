@@ -284,7 +284,9 @@ export function EnquiryForm({ source = 'contact', defaultService = '', defaultMe
   const [f, setF] = useState(empty);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
-  useEffect(() => setF((x) => ({ ...x, service: defaultService })), [defaultService]);
+  useEffect(() => {
+    setF((x) => ({ ...x, service: defaultService }));
+  }, [defaultService]);
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const submit = async (e) => {
     e.preventDefault();

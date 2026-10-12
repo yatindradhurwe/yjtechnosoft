@@ -5,6 +5,8 @@
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 process.env.TZ = process.env.TZ || 'Asia/Kolkata';
+const { fixUrl, normaliseEnvUrls } = require('../src/config/urls');
+normaliseEnvUrls();
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
@@ -320,6 +322,11 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
   await addColumn('invoices', 'project_id', 'INT NULL');
   await addColumn('invoices', 'viewed_at', 'DATETIME NULL');
   await addColumn('contracts', 'viewed_at', 'DATETIME NULL');
+  // repair website / API URLs saved with a typo such as "https:/site.com"
+  for (const key of ['site_url', 'api_public_url']) {
+    const row = (await q('SELECT `value` FROM settings WHERE `key` = ?', [key]))[0];
+    if (row && row.value && fixUrl(row.value) !== row.value) await q('UPDATE settings SET `value` = ? WHERE `key` = ?', [fixUrl(row.value), key]);
+  }
   console.log('✔ Migrations');
 
   // settings – only insert missing keys, never overwrite admin changes
