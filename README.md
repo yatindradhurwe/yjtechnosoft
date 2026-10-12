@@ -80,6 +80,13 @@ npm start                     # serves website + API on PORT (default 5000)
 2. Create the MySQL database and user in cPanel, then put the credentials in `server/.env`.
 3. In the app's terminal run `npm run install:all && npm run build && npm run setup`, then restart the app.
 
+### Automatic database setup
+When the server starts, it creates any missing tables, runs upgrades and inserts the default data. So you only need an **empty database and a normal user** — no SQL import and no MySQL admin login. Connection settings can be given in either of two ways:
+* `DATABASE_URL=mysql://user:password@host:3306/dbname` (URL-encode special characters in the password), or
+* `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`.
+
+Set `AUTO_SETUP=0` to turn this off.
+
 ### Database on shared / cPanel hosting (no MySQL admin needed)
 Some hosting installers show *“Could not log in to MySQL as an administrator”*. This app does **not** need the MySQL admin/root login. Create the database yourself and give the app a normal user:
 1. In the hosting panel, open **MySQL Databases**. Create a database (e.g. `yjtechnosoft`) and a user with a strong password. **Add the user to the database with ALL PRIVILEGES.**

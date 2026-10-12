@@ -9,8 +9,8 @@ const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
+const { dbSettings } = require('../src/config/dbSettings');
 
-const DEMO = process.argv.includes('--demo');
 
 const SETTINGS = {
   company_name: 'YJTECHNOSOFT PRIVATE LIMITED',
@@ -277,16 +277,14 @@ const CONTRACT_TEMPLATES = [
   },
 ];
 
-async function main() {
-  const dbName = process.env.DB_NAME || 'yjtechnosoft';
-  const conn = await mysql.createConnection({
-    host: process.env.DB_HOST || 'localhost',
-    port: Number(process.env.DB_PORT || 3306),
-    user: process.env.DB_USER || 'root',
-    password: process.env.DB_PASSWORD || '',
-    multipleStatements: true,
-    charset: 'utf8mb4',
-  });
+/**
+ * Creates/upgrades all tables and inserts missing default data. Idempotent –
+ * runs automatically every time the server starts, and via `npm run setup`.
+ */
+async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
+  const { database: dbName, ...cfg } = dbSettings();
+  const console = quiet ? { log: () => {} } : global.console;
+  const conn = await mysql.createConnection({ ...cfg, multipleStatements: true, charset: 'utf8mb4' });
   // Shared/cPanel hosting users usually cannot CREATE DATABASE – that's fine if the
   // database was already created in the hosting panel, so only try and carry on.
   try {
@@ -298,7 +296,7 @@ async function main() {
     await conn.query(`USE \`${dbName}\``);
   } catch (e) {
     throw new Error(
-      `Cannot open database "${dbName}" as user "${process.env.DB_USER}" (${e.code}).\n` +
+      `Cannot open database "${dbName}" as user "${cfg.user}" (${e.code}).\n` +
         '  → Create the database and user in your hosting panel (MySQL Databases), give the user ALL PRIVILEGES on it,\n' +
         '    and put the exact names in server/.env (DB_NAME, DB_USER, DB_PASSWORD). No MySQL admin/root login is needed.'
     );
@@ -332,7 +330,7 @@ async function main() {
   const adminEmail = (process.env.ADMIN_EMAIL || 'admin@yjtechnosoft.com').toLowerCase();
   if (!(await q('SELECT id FROM users WHERE email = ?', [adminEmail])).length) {
     await q('INSERT INTO users SET ?', [{ name: process.env.ADMIN_NAME || 'Administrator', email: adminEmail, role: 'admin', password_hash: await bcrypt.hash(process.env.ADMIN_PASSWORD || 'Admin@123', 10) }]);
-    console.log(`✔ Admin user created: ${adminEmail} / ${process.env.ADMIN_PASSWORD || 'Admin@123'}`);
+    global.console.log(`✔ Admin user created: ${adminEmail} / ${process.env.ADMIN_PASSWORD || 'Admin@123'}`);
   }
 
   if (!(await count('sliders'))) {
@@ -428,7 +426,7 @@ async function main() {
     await q('INSERT INTO announcements (title, message) VALUES (?, ?)', ['Welcome to the new employee portal', 'Mark your attendance, apply for leave, track tasks and submit daily reports – all from one place.']);
   }
 
-  if (DEMO) await demo(q);
+  if (withDemo) await demo(q);
   await conn.end();
   console.log('✔ Done');
 }
@@ -448,7 +446,9 @@ async function demo(q) {
   console.log('✔ Demo employees (password Employee@123): rohit@, priya@, aman@yjtechnosoft.com');
 }
 
-main().catch((e) => {
+module.exports = { setupDatabase };
+
+if (require.main === module) setupDatabase({ demo: process.argv.includes('--demo') }).catch((e) => {
   console.error('✖ Setup failed:', e.message);
   if (e.code === 'ER_ACCESS_DENIED_ERROR') {
     console.error('  → The DB_USER / DB_PASSWORD in server/.env are wrong, or the user is not allowed to connect from this host.');

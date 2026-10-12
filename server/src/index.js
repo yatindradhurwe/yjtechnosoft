@@ -53,11 +53,23 @@ const PORT = Number(process.env.PORT || 5000);
 if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 24)) {
   console.warn('⚠  Set a long random JWT_SECRET in server/.env before going live.');
 }
-if (require.main === module) {
+async function start() {
+  // Create / upgrade tables automatically – no manual SQL import or admin login needed
+  if (process.env.AUTO_SETUP !== '0') {
+    try {
+      await require('../database/seed').setupDatabase({ quiet: true });
+      console.log('✔ Database ready');
+    } catch (e) {
+      console.error(`✖ Database setup failed: ${e.message}`);
+      console.error('  Check DB_HOST / DB_NAME / DB_USER / DB_PASSWORD (or DATABASE_URL) in server/.env');
+    }
+  }
   app.listen(PORT, () => {
     console.log(`YJTechnosoft API running on http://localhost:${PORT}`);
     if (process.env.DISABLE_CRON !== '1') startCron();
   });
 }
+
+if (require.main === module) start();
 
 module.exports = app;
