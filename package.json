@@ -1,0 +1,18 @@
+{
+  "name": "yjtechnosoft",
+  "version": "1.0.0",
+  "private": true,
+  "description": "YJTechnosoft website + admin panel: CMS, billing, quotations, client servers, HR, attendance, payroll, letters, email/SMS/WhatsApp",
+  "scripts": {
+    "install:all": "npm install --prefix server && npm install --prefix client",
+    "setup": "npm run db:setup --prefix server",
+    "setup:demo": "npm run db:demo --prefix server",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build": "npm run build --prefix client",
+    "start": "npm start --prefix server"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

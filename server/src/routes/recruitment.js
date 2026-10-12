@@ -138,6 +138,11 @@ router.post(
 );
 
 // ============================================================ LETTERS
+const to12h = (t) => {
+  const [h, m] = String(t).split(':').map(Number);
+  return `${((h + 11) % 12) + 1}:${String(m || 0).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+};
+
 async function placeholderData({ employee_id, application_id }) {
   const s = await getSettings();
   const base = {
@@ -149,7 +154,7 @@ async function placeholderData({ employee_id, application_id }) {
     signatory: s.signatory_name || 'Authorised Signatory',
     signatory_designation: s.signatory_designation || '',
     issue_date: formatDate(toDateStr(), 'long'),
-    working_hours: `${s.office_start_time || '10:00'} AM to ${s.office_end_time || '6:00'} PM`,
+    working_hours: `${to12h(s.office_start_time || '10:00')} to ${to12h(s.office_end_time || '18:00')}`,
     location: s.city || 'Kawardha, Chhattisgarh',
   };
   if (employee_id) {

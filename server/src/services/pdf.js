@@ -433,7 +433,7 @@ function renderHtml(doc, html, { size = 10.5 } = {}) {
       if (i === 0) doc.text(r.text, x, doc.y, { ...opts, width });
       else doc.text(r.text, opts);
     });
-    doc.moveDown(isHeading ? 0.35 : 0.55);
+    doc.moveDown(isHeading ? 0.35 : b.type === 'li' ? 0.2 : 0.55);
   });
 }
 

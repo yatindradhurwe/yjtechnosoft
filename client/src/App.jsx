@@ -1,0 +1,44 @@
+import { lazy, Suspense } from 'react';
+import { Route, Routes } from 'react-router-dom';
+import SiteLayout from './components/site/Layout';
+import Home from './pages/site/Home';
+import { About, Services, ServiceDetail, Portfolio, PortfolioDetail, Blog, BlogPost, Careers, CareerDetail, Contact, GetQuote, CmsPage, NotFound } from './pages/site/Pages';
+import { Login, ForgotPassword, ResetPassword } from './pages/auth/Auth';
+import { PageLoader } from './components/ui';
+
+// Admin panel is code-split so the public website stays fast
+const AdminRoutes = lazy(() => import('./AdminRoutes'));
+
+export default function App() {
+  return (
+    <Routes>
+      <Route element={<SiteLayout />}>
+        <Route index element={<Home />} />
+        <Route path="about" element={<About />} />
+        <Route path="services" element={<Services />} />
+        <Route path="services/:slug" element={<ServiceDetail />} />
+        <Route path="portfolio" element={<Portfolio />} />
+        <Route path="portfolio/:slug" element={<PortfolioDetail />} />
+        <Route path="blog" element={<Blog />} />
+        <Route path="blog/:slug" element={<BlogPost />} />
+        <Route path="careers" element={<Careers />} />
+        <Route path="careers/:slug" element={<CareerDetail />} />
+        <Route path="contact" element={<Contact />} />
+        <Route path="get-quote" element={<GetQuote />} />
+        <Route path="page/:slug" element={<CmsPage />} />
+        <Route path="*" element={<NotFound />} />
+      </Route>
+      <Route path="login" element={<Login />} />
+      <Route path="forgot-password" element={<ForgotPassword />} />
+      <Route path="reset-password" element={<ResetPassword />} />
+      <Route
+        path="admin/*"
+        element={
+          <Suspense fallback={<PageLoader />}>
+            <AdminRoutes />
+          </Suspense>
+        }
+      />
+    </Routes>
+  );
+}

@@ -13,6 +13,12 @@ const pool = mysql.createPool({
   charset: 'utf8mb4',
 });
 
+// Keep MySQL date functions (CURDATE, NOW) in the same timezone as the app
+const DB_TZ = process.env.DB_TIMEZONE || '+05:30';
+pool.on('connection', (conn) => {
+  conn.query(`SET time_zone = '${DB_TZ.replace(/[^0-9:+-]/g, '')}'`);
+});
+
 async function query(sql, params = []) {
   const [rows] = await pool.query(sql, params);
   return rows;

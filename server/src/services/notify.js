@@ -119,7 +119,7 @@ async function sendSMS({ to, message, refType, refId, userId }) {
         { auth: { username: s.twilio_sid, password: s.twilio_token } }
       );
     } else if (provider === 'custom') {
-      // e.g. https://sms.example.com/api?key=XXX&to={to}&sender=YJTECH&text={message}
+      // e.g. https://sms.example.com/api?key=XXX&to={{to10}}&sender=YJTECH&text={{message}}
       const url = renderTemplate(s.sms_custom_url, { to: phone, to10: phone.slice(-10), message: encodeURIComponent(message) });
       await axios.get(url);
     }
@@ -166,7 +166,7 @@ async function sendWhatsApp({ to, message, documentUrl, filename, refType, refId
         auth: { username: s.twilio_sid, password: s.twilio_token },
       });
     } else if (provider === 'custom') {
-      // e.g. https://wa.example.com/send?apikey=XXX&number={to}&message={message}&media={file}
+      // e.g. https://wa.example.com/send?apikey=XXX&number={{to}}&message={{message}}&media={{file}}
       const url = renderTemplate(s.whatsapp_custom_url, {
         to: phone,
         to10: phone.slice(-10),

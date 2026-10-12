@@ -4,6 +4,7 @@
  *   npm run db:setup -- --demo  -> also inserts demo employees/clients/invoices
  */
 require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+process.env.TZ = process.env.TZ || 'Asia/Kolkata';
 const fs = require('fs');
 const path = require('path');
 const mysql = require('mysql2/promise');

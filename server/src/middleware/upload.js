@@ -1,10 +1,12 @@
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const jwt = require('jsonwebtoken');
 
 const UPLOAD_ROOT = path.join(__dirname, '..', '..', 'uploads');
 
-const IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico'];
+// SVG is intentionally excluded – it can carry scripts
+const IMAGE_EXT = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.ico'];
 const DOC_EXT = ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.txt', '.zip'];
 
 function makeUploader(folder = 'misc', { maxMb = 10, allow = [...IMAGE_EXT, ...DOC_EXT] } = {}) {
@@ -35,4 +37,21 @@ function makeUploader(folder = 'misc', { maxMb = 10, allow = [...IMAGE_EXT, ...D
 
 const fileUrl = (folder, file) => (file ? `/uploads/${folder}/${file.filename}` : null);
 
-module.exports = { makeUploader, fileUrl, UPLOAD_ROOT, IMAGE_EXT, DOC_EXT };
+const PRIVATE_FOLDERS = ['resumes', 'documents', 'receipts'];
+
+/** Blocks anonymous access to private upload folders (token via ?token= or Authorization header) */
+function privateUploads(req, res, next) {
+  const folder = req.path.split('/')[1];
+  if (!PRIVATE_FOLDERS.includes(folder)) return next();
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : req.query.token;
+  try {
+    const payload = jwt.verify(token || '', process.env.JWT_SECRET || 'dev-secret-change-me');
+    if (['admin', 'hr', 'accounts'].includes(payload.role)) return next();
+  } catch (e) {
+    /* fall through */
+  }
+  return res.status(403).send('Forbidden');
+}
+
+module.exports = { makeUploader, fileUrl, privateUploads, PRIVATE_FOLDERS, UPLOAD_ROOT, IMAGE_EXT, DOC_EXT };

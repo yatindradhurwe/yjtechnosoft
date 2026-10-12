@@ -1,4 +1,6 @@
 require('dotenv').config();
+// All attendance / invoice dates are local Indian time unless configured otherwise
+process.env.TZ = process.env.TZ || 'Asia/Kolkata';
 const path = require('path');
 const fs = require('fs');
 const express = require('express');
@@ -7,7 +9,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
 const { notFound, errorHandler } = require('./middleware/error');
-const { UPLOAD_ROOT } = require('./middleware/upload');
+const { UPLOAD_ROOT, privateUploads } = require('./middleware/upload');
 const { startCron } = require('./services/cron');
 
 const app = express();
@@ -19,8 +21,8 @@ app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true }));
 if (process.env.NODE_ENV !== 'test') app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
-// Uploaded files (resumes are only reachable through authenticated admin UI links, but kept simple here)
-app.use('/uploads', express.static(UPLOAD_ROOT, { maxAge: '7d' }));
+// Private uploads (resumes, HR documents, receipts) require a staff login; everything else is public
+app.use('/uploads', privateUploads, express.static(UPLOAD_ROOT, { maxAge: '7d' }));
 app.use('/assets', express.static(path.join(__dirname, '..', 'assets'), { maxAge: '30d' }));
 
 app.get('/api/health', (req, res) => res.json({ ok: true, time: new Date().toISOString() }));
@@ -46,6 +48,9 @@ if (fs.existsSync(clientDist)) {
 app.use(errorHandler);
 
 const PORT = Number(process.env.PORT || 5000);
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 24)) {
+  console.warn('⚠  Set a long random JWT_SECRET in server/.env before going live.');
+}
 if (require.main === module) {
   app.listen(PORT, () => {
     console.log(`YJTechnosoft API running on http://localhost:${PORT}`);
