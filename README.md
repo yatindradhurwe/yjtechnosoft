@@ -91,6 +91,7 @@ Some hosting installers show *“Could not log in to MySQL as an administrator�
    DB_PASSWORD=your-password
    ```
 3. Run `npm run setup`. It uses the existing database and creates all tables.
+   **Or import the ready-made file** `server/database/yjtechnosoft.sql` in phpMyAdmin (select your database › Import). It contains every table plus the default data. Admin login: `admin@yjtechnosoft.com` / `Admin@123`, so change the password after logging in.
    If the installer insists on an admin login, skip its Database step and use these steps instead.
 
 After going live, open **Admin › Settings** and set:
