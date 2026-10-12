@@ -27,6 +27,10 @@ export function Logo({ light = false, className = 'h-11' }) {
   return (
     <img
       src={asset(src)}
+      onError={(e) => {
+        // never leave an empty space – fall back to the bundled logo
+        if (!e.currentTarget.src.endsWith('/logo.png')) e.currentTarget.src = '/logo.png';
+      }}
       alt={settings.site_name || 'YJTechnosoft'}
       className={cn(className, 'w-auto object-contain', light && !settings.logo_light && 'rounded-lg bg-white px-2 py-1')}
     />

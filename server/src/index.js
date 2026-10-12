@@ -24,6 +24,8 @@ if (process.env.NODE_ENV !== 'test') app.use(morgan(process.env.NODE_ENV === 'pr
 
 // Private uploads (resumes, HR documents, receipts) require a staff login; everything else is public
 app.use('/uploads', privateUploads, express.static(UPLOAD_ROOT, { maxAge: '7d' }));
+// Same files under /api so they work when only /api is forwarded to Node (separate frontend hosting)
+app.use('/api/uploads', privateUploads, express.static(UPLOAD_ROOT, { maxAge: '7d' }));
 app.use('/assets', express.static(path.join(__dirname, '..', 'assets'), { maxAge: '30d' }));
 
 // Health check – open /api/health in the browser to see if the database is connected

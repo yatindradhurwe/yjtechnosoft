@@ -189,7 +189,7 @@ export default function AdminLayout() {
 
   const brand = (
     <Link to="/admin" className="flex items-center gap-3 px-5 py-5">
-      <img src={asset(settings.favicon || '/favicon.png')} alt="" className="h-10 w-10 rounded-xl bg-white object-contain p-0.5" />
+      <img src={asset(settings.favicon || '/favicon.png')} onError={(e) => { if (!e.currentTarget.src.endsWith('/favicon.png')) e.currentTarget.src = '/favicon.png'; }} alt="" className="h-10 w-10 rounded-xl bg-white object-contain p-0.5" />
       <div>
         <p className="font-display text-base font-bold leading-tight text-white">{settings.site_name || 'YJTechnosoft'}</p>
         <p className="text-[11px] uppercase tracking-widest text-accent-400">{user.role === 'employee' ? 'Employee Portal' : 'Admin Panel'}</p>

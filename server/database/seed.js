@@ -18,9 +18,9 @@ const SETTINGS = {
   company_name: 'YJTECHNOSOFT PRIVATE LIMITED',
   site_name: 'YJTechnosoft',
   tagline: 'One Stop Solution',
-  logo: '/assets/logo.png',
+  logo: '/logo.png',
   logo_light: '',
-  favicon: '/assets/logo-icon.png',
+  favicon: '/favicon.png',
   phone: '+91 7000796585',
   phone2: '+91 8770510012',
   email: 'yjtechnosoft@gmail.com',
@@ -322,6 +322,9 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
   await addColumn('invoices', 'project_id', 'INT NULL');
   await addColumn('invoices', 'viewed_at', 'DATETIME NULL');
   await addColumn('contracts', 'viewed_at', 'DATETIME NULL');
+  // logo/favicon now ship with the website build (works when site & API are served separately)
+  await q("UPDATE settings SET `value` = '/logo.png' WHERE `key` = 'logo' AND `value` = '/assets/logo.png'");
+  await q("UPDATE settings SET `value` = '/favicon.png' WHERE `key` = 'favicon' AND `value` = '/assets/logo-icon.png'");
   // repair website / API URLs saved with a typo such as "https:/site.com"
   for (const key of ['site_url', 'api_public_url']) {
     const row = (await q('SELECT `value` FROM settings WHERE `key` = ?', [key]))[0];

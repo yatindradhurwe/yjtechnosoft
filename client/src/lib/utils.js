@@ -2,11 +2,16 @@ import { API_BASE, getToken } from './api';
 
 export const cn = (...a) => a.filter(Boolean).join(' ');
 
+const LEGACY = { '/assets/logo.png': '/logo.png', '/assets/logo-icon.png': '/favicon.png' };
+
 export const asset = (p) => {
   if (!p) return '';
+  if (LEGACY[p]) return LEGACY[p];
+  // serve uploads through /api so they work wherever the API is reachable
+  if (p.startsWith('/uploads/')) p = `/api${p}`;
   if (/^(https?:)?\/\//.test(p) || p.startsWith('data:')) return p;
   // private uploads need the staff token
-  if (/^\/uploads\/(resumes|documents|receipts)\//.test(p)) return `${API_BASE}${p}?token=${getToken() || ''}`;
+  if (/^\/api\/uploads\/(resumes|documents|receipts|vault)\//.test(p)) return `${API_BASE}${p}?token=${getToken() || ''}`;
   return `${API_BASE}${p}`;
 };
 
