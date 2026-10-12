@@ -1,0 +1,35 @@
+{
+  "name": "yjtechnosoft-server",
+  "version": "1.0.0",
+  "description": "YJTechnosoft API – website CMS, billing, HR & notifications",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "db:setup": "node database/seed.js",
+    "db:demo": "node database/seed.js --demo"
+  },
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "axios": "^1.20.0",
+    "bcryptjs": "^3.0.3",
+    "compression": "^1.8.2",
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.7",
+    "express": "^4.22.3",
+    "express-rate-limit": "^8.7.1",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.12.1",
+    "multer": "^2.4.0",
+    "mysql2": "^3.24.5",
+    "node-cron": "^4.6.0",
+    "nodemailer": "^10.1.0",
+    "pdfkit": "^0.20.2"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  }
+}
