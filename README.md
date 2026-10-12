@@ -80,6 +80,19 @@ npm start                     # serves website + API on PORT (default 5000)
 2. Create the MySQL database and user in cPanel, then put the credentials in `server/.env`.
 3. In the app's terminal run `npm run install:all && npm run build && npm run setup`, then restart the app.
 
+### Database on shared / cPanel hosting (no MySQL admin needed)
+Some hosting installers show *“Could not log in to MySQL as an administrator”*. This app does **not** need the MySQL admin/root login. Create the database yourself and give the app a normal user:
+1. In the hosting panel, open **MySQL Databases**. Create a database (e.g. `yjtechnosoft`) and a user with a strong password. **Add the user to the database with ALL PRIVILEGES.**
+2. Put the full names in `server/.env`. cPanel adds your account prefix, for example:
+   ```
+   DB_HOST=localhost
+   DB_NAME=cpaneluser_yjtechnosoft
+   DB_USER=cpaneluser_yj
+   DB_PASSWORD=your-password
+   ```
+3. Run `npm run setup`. It uses the existing database and creates all tables.
+   If the installer insists on an admin login, skip its Database step and use these steps instead.
+
 After going live, open **Admin › Settings** and set:
 * **Company › Website URL**, plus **Letterhead & Signature › Public API URL**. Both are your domain, and they are used for email links and WhatsApp document links.
 * **Letterhead & Signature** – upload your signature and company stamp (transparent PNG). These are printed on every document.

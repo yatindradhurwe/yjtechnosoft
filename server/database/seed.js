@@ -287,8 +287,22 @@ async function main() {
     multipleStatements: true,
     charset: 'utf8mb4',
   });
-  await conn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
-  await conn.query(`USE \`${dbName}\``);
+  // Shared/cPanel hosting users usually cannot CREATE DATABASE – that's fine if the
+  // database was already created in the hosting panel, so only try and carry on.
+  try {
+    await conn.query(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+  } catch (e) {
+    console.log(`ℹ Could not create database "${dbName}" (${e.code}) – using the existing database.`);
+  }
+  try {
+    await conn.query(`USE \`${dbName}\``);
+  } catch (e) {
+    throw new Error(
+      `Cannot open database "${dbName}" as user "${process.env.DB_USER}" (${e.code}).\n` +
+        '  → Create the database and user in your hosting panel (MySQL Databases), give the user ALL PRIVILEGES on it,\n' +
+        '    and put the exact names in server/.env (DB_NAME, DB_USER, DB_PASSWORD). No MySQL admin/root login is needed.'
+    );
+  }
   await conn.query(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
   console.log('✔ Schema ready');
 
@@ -436,5 +450,9 @@ async function demo(q) {
 
 main().catch((e) => {
   console.error('✖ Setup failed:', e.message);
+  if (e.code === 'ER_ACCESS_DENIED_ERROR') {
+    console.error('  → The DB_USER / DB_PASSWORD in server/.env are wrong, or the user is not allowed to connect from this host.');
+    console.error('    On cPanel hosting the names usually have a prefix, e.g. DB_USER=cpaneluser_yj and DB_NAME=cpaneluser_yjtechnosoft.');
+  }
   process.exit(1);
 });
