@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Image, Briefcase, FileText, MessageSquareQuote, Users, Building2, Cpu, BarChart3, BadgeIndianRupee, HelpCircle, FileStack,
   Inbox, Mail, Receipt, FileSpreadsheet, Wallet, Package, Server, CreditCard, UserCog, CalendarCheck, CalendarOff, PartyPopper, Banknote, Network,
   BadgeCheck, CalendarRange, Megaphone, UserPlus, ClipboardList, FileSignature, FolderKanban, ListTodo, NotebookPen, Settings, Shield, Bell, LogOut,
-  Menu, X, ChevronDown, UserCircle, ExternalLink, Clock, Layers, FolderLock, IdCard } from 'lucide-react';
+  Menu, X, ChevronDown, UserCircle, ExternalLink, Clock, Layers, FolderLock, IdCard, LayoutTemplate } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSite } from '../context/SiteContext';
 import { asset, cn } from '../lib/utils';
@@ -108,6 +108,7 @@ export const NAV = [
       { label: 'Overview', to: '/admin/profile-builder', icon: IdCard, end: true },
       { label: 'Customers & Firms', to: '/admin/profile-builder/customers', icon: Users },
       { label: 'All Profiles', to: '/admin/profile-builder/profiles', icon: FileText },
+      { label: 'Templates', to: '/admin/profile-builder/templates', icon: LayoutTemplate },
       { label: 'Open Builder', to: '/app', icon: ExternalLink },
     ],
   },

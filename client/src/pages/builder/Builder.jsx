@@ -4,9 +4,10 @@ import toast from 'react-hot-toast';
 import { Building2, Copy, Download, FileText, Globe, IdCard, LayoutTemplate, LogOut, Palette, Pencil, Plus, Sparkles, Trash2, User } from 'lucide-react';
 import api, { API_BASE, errMsg } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
-import { EmptyState, Field, Modal, PageLoader, Spinner, useConfirm } from '../../components/ui';
+import { EmptyState, PageLoader, Spinner, useConfirm } from '../../components/ui';
 import { Logo, Seo } from '../../components/site/Layout';
 import { fmtDate } from '../../lib/utils';
+import NewProfileModal from './TemplatePicker';
 
 export const publicLink = (slug) => `${window.location.origin}/p/${slug}`;
 
@@ -41,7 +42,7 @@ export function AppLayout() {
   const { pathname } = useLocation();
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(pathname)}`} replace />;
-  const editor = /^\/app\/profiles\/\d+/.test(pathname);
+  const editor = /^\/app\/(profiles|templates)\/\d+/.test(pathname);
   return (
     <div className="min-h-screen bg-slate-50">
       {!editor && (
@@ -72,8 +73,7 @@ export function Dashboard() {
   const [rows, setRows] = useState(null);
   const [meta, setMeta] = useState(null);
   const [all, setAll] = useState(false);
-  const [create, setCreate] = useState(null);
-  const [busy, setBusy] = useState(false);
+  const [creating, setCreating] = useState(false);
   const isAdmin = user.role === 'admin';
 
   const load = () =>
@@ -85,17 +85,6 @@ export function Dashboard() {
     load();
   }, [all]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const submit = async () => {
-    setBusy(true);
-    try {
-      const { data } = await api.post('/profiles', create);
-      navigate(`/app/profiles/${data.id}`);
-    } catch (e) {
-      toast.error(errMsg(e));
-    } finally {
-      setBusy(false);
-    }
-  };
   const remove = async (p) => {
     if (!(await confirm({ title: 'Delete profile?', text: `“${p.title}” will be permanently deleted.` }))) return;
     await api.delete(`/profiles/${p.id}`);
@@ -139,7 +128,7 @@ export function Dashboard() {
           {isAdmin && (
             <button className="btn-outline" onClick={() => setAll(!all)}>{all ? 'Show my profiles' : 'Show all customers’ profiles'}</button>
           )}
-          <button className="btn-primary" onClick={() => setCreate({ template: 'company', title: '', name: '', owner_email: '' })}>
+          <button className="btn-primary" onClick={() => setCreating(true)}>
             <Plus className="h-4 w-4" /> New profile
           </button>
         </div>
@@ -147,7 +136,7 @@ export function Dashboard() {
 
       {!rows.length ? (
         <div className="card p-10">
-          <EmptyState icon={IdCard} title="No profiles yet" text="Start from a company or personal template. You can change everything later." action={<button className="btn-primary" onClick={() => setCreate({ template: 'company', title: '', name: '' })}><Plus className="h-4 w-4" /> Create your first profile</button>} />
+          <EmptyState icon={IdCard} title="No profiles yet" text="Pick a template for your firm or for yourself. You can change everything later." action={<button className="btn-primary" onClick={() => setCreating(true)}><Plus className="h-4 w-4" /> Create your first profile</button>} />
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -177,45 +166,7 @@ export function Dashboard() {
         </div>
       )}
 
-      <Modal
-        open={!!create}
-        onClose={() => setCreate(null)}
-        title="Create a new profile"
-        size="max-w-lg"
-        footer={
-          <>
-            <button className="btn-outline" onClick={() => setCreate(null)}>Cancel</button>
-            <button className="btn-primary" disabled={busy} onClick={submit}>{busy ? <Spinner className="h-4 w-4 text-white" /> : <Sparkles className="h-4 w-4" />} Create</button>
-          </>
-        }
-      >
-        {create && (
-          <div className="space-y-4">
-            <Field label="Start from">
-              <div className="grid gap-2">
-                {meta.templates.map((t) => (
-                  <label key={t.key} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-sm ${create.template === t.key ? 'border-brand-500 bg-brand-50' : 'border-slate-200'}`}>
-                    <input type="radio" checked={create.template === t.key} onChange={() => setCreate({ ...create, template: t.key })} />
-                    {t.type === 'personal' ? <User className="h-4 w-4 text-slate-500" /> : <Building2 className="h-4 w-4 text-slate-500" />}
-                    {t.label}
-                  </label>
-                ))}
-              </div>
-            </Field>
-            <Field label={meta.templates.find((t) => t.key === create.template)?.type === 'personal' ? 'Person’s name' : 'Company name'}>
-              <input className="input" value={create.name} onChange={(e) => setCreate({ ...create, name: e.target.value })} placeholder="Shown on the cover" />
-            </Field>
-            <Field label="Profile title (for your list)">
-              <input className="input" value={create.title} onChange={(e) => setCreate({ ...create, title: e.target.value })} placeholder="e.g. Company profile 2026" />
-            </Field>
-            {isAdmin && (
-              <Field label="Create in a customer’s account (optional)" hint="Leave empty to keep it in your own account.">
-                <input className="input" type="email" value={create.owner_email || ''} onChange={(e) => setCreate({ ...create, owner_email: e.target.value })} placeholder="customer@email.com" />
-              </Field>
-            )}
-          </div>
-        )}
-      </Modal>
+      <NewProfileModal open={creating} askOwnerEmail={isAdmin} onClose={() => setCreating(false)} onCreated={(p) => navigate(`/app/profiles/${p.id}`)} />
     </div>
   );
 }
@@ -259,7 +210,7 @@ export function Landing() {
   const features = [
     [Building2, 'Company profiles', 'Cover page, about us, services, projects, methodology and contact, ready for clients and government offices.'],
     [User, 'Personal profiles', 'A professional profile with photo, expertise, experience timeline, education and highlights.'],
-    [LayoutTemplate, 'Section by section', 'Add, reorder, hide or remove sections: text, cards, tables, projects, timelines, galleries and more.'],
+    [LayoutTemplate, '30+ ready templates', 'Templates for every kind of firm (IT, construction, law, CA, hospital, school, NGO, government supplier…) and individual (doctor, advocate, developer, student…). Add, reorder or remove any section.'],
     [Palette, 'Your brand colours', 'Pick a theme or set your own colours. Upload your logo, photos and project screenshots.'],
     [Download, 'Download as PDF', 'A4, print-ready PDF with cover, page numbers and consistent design. Update and download again any time.'],
     [Globe, 'Share a link', 'Make a profile public and share one link. Visitors can view it and download the PDF.'],

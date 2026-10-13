@@ -225,14 +225,15 @@ function SectionEditor({ s, onChange }) {
 }
 
 /* ------------------------------------------------------------------ details tab */
-function DetailsTab({ profile, data, setData, setTitle, meta }) {
+function DetailsTab({ profile, data, setData, setTitle, meta, isTemplate }) {
   const b = data.basics || {};
   const set = (k) => (v) => setData({ ...data, basics: { ...b, [k]: v } });
   const personal = profile.type === 'personal';
   return (
     <div className="space-y-5">
       <div className="space-y-2.5">
-        <Input label="Profile title (your list only)" value={profile.title} onChange={setTitle} />
+        <Input label={isTemplate ? 'Template name' : 'Profile title (your list only)'} value={profile.title} onChange={setTitle} />
+        {isTemplate && <p className="text-xs text-slate-500">Use [Company Name] or [Your Full Name] anywhere: it is replaced by the name the customer enters.</p>}
       </div>
       <div className="space-y-2.5">
         <h3 className="text-sm font-semibold text-navy-900">{personal ? 'Person' : 'Cover page'}</h3>
@@ -384,8 +385,11 @@ function Preview({ profile, data }) {
 }
 
 /* ------------------------------------------------------------------ editor */
-export default function Editor() {
+/** mode="template": an admin editing a template from the template library */
+export default function Editor({ mode = 'profile' }) {
   const { id } = useParams();
+  const isTemplate = mode === 'template';
+  const endpoint = isTemplate ? `/profiles/admin/templates/${id}` : `/profiles/${id}`;
   const [profile, setProfile] = useState(null);
   const [data, setDataState] = useState(null);
   const [meta, setMeta] = useState(null);
@@ -396,14 +400,14 @@ export default function Editor() {
   const timer = useRef(null);
 
   useEffect(() => {
-    Promise.all([api.get(`/profiles/${id}`), api.get('/profiles/meta')])
+    Promise.all([api.get(endpoint), api.get('/profiles/meta')])
       .then(([p, m]) => {
-        setProfile(p.data);
+        setProfile(isTemplate ? { ...p.data, title: p.data.name } : p.data);
         setDataState(p.data.data);
         setMeta(m.data);
       })
       .catch((e) => toast.error(errMsg(e)));
-  }, [id]);
+  }, [endpoint, isTemplate]);
 
   const flush = useCallback(async () => {
     clearTimeout(timer.current);
@@ -412,14 +416,15 @@ export default function Editor() {
     pending.current = null;
     setStatus('saving');
     try {
-      await api.put(`/profiles/${id}`, patch);
+      const { title, ...rest } = patch;
+      await api.put(endpoint, isTemplate ? { ...rest, ...(title !== undefined && { name: title }) } : patch);
       setStatus(pending.current ? 'dirty' : 'saved');
     } catch (e) {
       pending.current = { ...patch, ...pending.current };
       setStatus('error');
       toast.error(errMsg(e));
     }
-  }, [id]);
+  }, [endpoint, isTemplate]);
 
   const queue = (patch) => {
     pending.current = { ...pending.current, ...patch };
@@ -479,7 +484,8 @@ export default function Editor() {
     <div className="flex h-screen flex-col">
       <Seo title={`Edit · ${profile.title}`} />
       <header className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2">
-        <Link to="/app" className="btn-ghost btn-sm" onClick={flush}><ArrowLeft className="h-4 w-4" /> Profiles</Link>
+        <Link to={isTemplate ? '/admin/profile-builder/templates' : '/app'} className="btn-ghost btn-sm" onClick={flush}><ArrowLeft className="h-4 w-4" /> {isTemplate ? 'Templates' : 'Profiles'}</Link>
+        {isTemplate && <span className="badge bg-accent-500/20 text-navy-900">Editing template</span>}
         <span className="min-w-0 flex-1 truncate font-semibold text-navy-900">{profile.title}</span>
         <span className="flex items-center gap-1 text-xs text-slate-500">
           {status === 'saving' && <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Saving…</>}
@@ -487,12 +493,14 @@ export default function Editor() {
           {status === 'saved' && <><Check className="h-3.5 w-3.5 text-emerald-600" /> Saved</>}
           {status === 'error' && <button className="text-red-600 underline" onClick={flush}>Save failed, retry</button>}
         </span>
-        <div className="flex items-center gap-2 rounded-xl border border-slate-200 px-2 py-1">
-          <Switch checked={profile.is_public} onChange={setPublic} label={<span className="flex items-center gap-1 text-xs"><Globe className="h-3.5 w-3.5" /> Public link</span>} />
-          {profile.is_public && <button className="btn-ghost btn-sm !px-2" onClick={copyLink} title={publicLink(profile.slug)}><Copy className="h-3.5 w-3.5" /></button>}
-        </div>
+        {!isTemplate && (
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 px-2 py-1">
+            <Switch checked={profile.is_public} onChange={setPublic} label={<span className="flex items-center gap-1 text-xs"><Globe className="h-3.5 w-3.5" /> Public link</span>} />
+            {profile.is_public && <button className="btn-ghost btn-sm !px-2" onClick={copyLink} title={publicLink(profile.slug)}><Copy className="h-3.5 w-3.5" /></button>}
+          </div>
+        )}
         <button className="btn-outline btn-sm lg:hidden" onClick={() => setMobilePreview(!mobilePreview)}>{mobilePreview ? 'Edit' : 'Preview'}</button>
-        <button className="btn-primary btn-sm" onClick={download}><Download className="h-4 w-4" /> Download PDF</button>
+        {!isTemplate && <button className="btn-primary btn-sm" onClick={download}><Download className="h-4 w-4" /> Download PDF</button>}
       </header>
       <div className="flex min-h-0 flex-1">
         <aside className={`${mobilePreview ? 'hidden' : 'flex'} w-full flex-col border-r border-slate-200 bg-slate-50 lg:flex lg:w-[440px]`}>
@@ -502,7 +510,7 @@ export default function Editor() {
             ))}
           </div>
           <div className="thin-scroll flex-1 overflow-y-auto p-3">
-            {tab === 'sections' ? <SectionsTab data={data} setData={setData} /> : <DetailsTab profile={profile} data={data} setData={setData} setTitle={setTitle} meta={meta} />}
+            {tab === 'sections' ? <SectionsTab data={data} setData={setData} /> : <DetailsTab profile={profile} data={data} setData={setData} setTitle={setTitle} meta={meta} isTemplate={isTemplate} />}
           </div>
         </aside>
         <main className={`${mobilePreview ? 'block' : 'hidden'} min-w-0 flex-1 lg:block`}>

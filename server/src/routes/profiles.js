@@ -14,7 +14,7 @@ const { getSettings } = require('../utils/settings');
 const { slugify, pick } = require('../utils/helpers');
 const { renderProfileHtml, THEMES, SECTION_KINDS, themeVars } = require('../services/profileRender');
 const { htmlToPdf, isPdfAvailable } = require('../services/profilePdf');
-const { TEMPLATES } = require('../services/profileTemplates');
+const { seedTemplates } = require('../services/profileTemplateLibrary');
 
 const router = express.Router();
 const MAX_DATA = 1024 * 1024; // 1 MB of profile JSON is far more than any real profile needs
@@ -62,6 +62,37 @@ async function assertBelowLimit(userId) {
   const limit = await limitFor(userId);
   const { c } = await one('SELECT COUNT(*) c FROM profiles WHERE user_id = ?', [userId]);
   if (c >= limit) throw new HttpError(403, `Your plan allows ${limit} profiles. Delete one to create another.`);
+}
+
+// ------------------------------------------------------------------ templates
+const TEMPLATE_LIST = `SELECT id, code, name, category, type, description, is_active, staff_only, sort_order, updated_at,
+  JSON_UNQUOTE(JSON_EXTRACT(data, '$.theme')) theme, JSON_UNQUOTE(JSON_EXTRACT(data, '$.colors.primary')) primary_color,
+  JSON_UNQUOTE(JSON_EXTRACT(data, '$.colors.accent')) accent_color FROM profile_templates`;
+
+/** Adds the colours used to draw the template thumbnail */
+function withSwatch(t) {
+  const theme = THEMES[t.theme] || THEMES['navy-gold'];
+  const ok = (v) => /^#[0-9a-f]{6}$/i.test(v || '');
+  return {
+    ...t,
+    is_active: !!t.is_active,
+    staff_only: !!t.staff_only,
+    primary: ok(t.primary_color) ? t.primary_color : theme.primary,
+    accent: ok(t.accent_color) ? t.accent_color : theme.accent,
+  };
+}
+
+async function loadTemplate(req, id) {
+  const t = parse(await one('SELECT * FROM profile_templates WHERE id = ?', [id]));
+  if (!t || (!isAdmin(req.user) && (!t.is_active || (t.staff_only && !isStaff(req.user))))) throw new HttpError(404, 'Template not found');
+  return t;
+}
+
+/** Template content with "[Company Name]" / "[Your Full Name]" replaced by the given name */
+function fillName(data, name) {
+  if (!name) return data;
+  const safe = JSON.stringify(String(name).trim().slice(0, 150)).slice(1, -1);
+  return JSON.parse(JSON.stringify(data).split('[Company Name]').join(safe).split('[Your Full Name]').join(safe));
 }
 
 async function loadOwned(req, id) {
@@ -122,9 +153,6 @@ router.get(
   asyncHandler(async (req, res) => {
     res.json({
       themes: Object.entries(THEMES).map(([key, t]) => ({ key, ...t })),
-      templates: Object.entries(TEMPLATES)
-        .filter(([, t]) => !t.staffOnly || isStaff(req.user))
-        .map(([key, t]) => ({ key, type: t.type, label: t.label })),
       kinds: SECTION_KINDS,
       pdf: isPdfAvailable(),
       limit: isStaff(req.user) ? null : await limitFor(req.user.id),
@@ -150,8 +178,11 @@ router.get(
 router.post(
   '/',
   asyncHandler(async (req, res) => {
-    const tpl = TEMPLATES[req.body.template] || TEMPLATES.company;
-    if (tpl.staffOnly && !isStaff(req.user)) throw new HttpError(403, 'Template not available');
+    let row = null;
+    if (req.body.template_id) row = await one('SELECT id FROM profile_templates WHERE id = ?', [req.body.template_id]);
+    else row = await one('SELECT id FROM profile_templates WHERE code = ?', [String(req.body.template || 'company')]);
+    if (!row) throw new HttpError(404, 'Template not found');
+    const tpl = await loadTemplate(req, row.id);
     let ownerId = req.user.id;
     // admins can create a profile directly in a customer's account
     if (isAdmin(req.user) && req.body.owner_id) {
@@ -164,10 +195,26 @@ router.post(
       ownerId = owner.id;
     }
     if (!isStaff(req.user)) await assertBelowLimit(ownerId);
-    const title = String(req.body.title || '').trim() || tpl.label;
-    const data = tpl.build(req.body.name ? String(req.body.name).trim() : undefined);
-    const r = await query('INSERT INTO profiles SET ?', [{ user_id: ownerId, type: tpl.type, title, slug: newSlug(title), data: cleanData(data) }]);
+    const title = String(req.body.title || '').trim() || (req.body.name ? `${String(req.body.name).trim()} – ${tpl.name}` : tpl.name);
+    const data = fillName(tpl.data, req.body.name);
+    const r = await query('INSERT INTO profiles SET ?', [{ user_id: ownerId, type: tpl.type, template_id: tpl.id, title, slug: newSlug(title), data: cleanData(data) }]);
     res.status(201).json(parse(await one('SELECT * FROM profiles WHERE id = ?', [r.insertId])));
+  })
+);
+
+router.get(
+  '/templates',
+  asyncHandler(async (req, res) => {
+    const rows = await query(`${TEMPLATE_LIST} WHERE is_active = 1 ${isStaff(req.user) ? '' : 'AND staff_only = 0'} ORDER BY sort_order, name`);
+    res.json({ data: rows.map(withSwatch) });
+  })
+);
+
+router.get(
+  '/templates/:id/preview',
+  asyncHandler(async (req, res) => {
+    const t = await loadTemplate(req, req.params.id);
+    res.type('html').send(renderProfileHtml({ type: t.type, title: t.name, data: t.data }, { base: publicBase(req) }));
   })
 );
 
@@ -354,6 +401,86 @@ admin.put(
   })
 );
 
+// ------------------------------------------------------------------ admin: template library
+const TEMPLATE_FIELDS = ['name', 'category', 'type', 'description', 'is_active', 'staff_only', 'sort_order'];
+function templateData(body) {
+  const d = pick(body, TEMPLATE_FIELDS);
+  if (d.name !== undefined) d.name = String(d.name).trim().slice(0, 150);
+  if (d.category !== undefined) d.category = String(d.category).trim().slice(0, 100) || 'General';
+  if (d.type !== undefined && !['company', 'personal'].includes(d.type)) delete d.type;
+  if (d.description !== undefined) d.description = String(d.description || '').slice(0, 300);
+  ['is_active', 'staff_only'].forEach((k) => d[k] !== undefined && (d[k] = d[k] ? 1 : 0));
+  if (d.sort_order !== undefined) d.sort_order = parseInt(d.sort_order, 10) || 0;
+  if (body.data !== undefined) d.data = cleanData(body.data);
+  return d;
+}
+
+admin.get(
+  '/templates',
+  asyncHandler(async (req, res) => {
+    const rows = await query(`${TEMPLATE_LIST} ORDER BY sort_order, name`);
+    const usage = await query('SELECT template_id, COUNT(*) c FROM profiles WHERE template_id IS NOT NULL GROUP BY template_id');
+    const used = Object.fromEntries(usage.map((u) => [u.template_id, Number(u.c)]));
+    res.json({ data: rows.map((t) => ({ ...withSwatch(t), used: used[t.id] || 0 })) });
+  })
+);
+
+admin.get('/templates/:id', asyncHandler(async (req, res) => res.json(await loadTemplate(req, req.params.id))));
+
+// new template: blank (company / personal), copy of another template, or copy of a profile
+admin.post(
+  '/templates',
+  asyncHandler(async (req, res) => {
+    const d = templateData(req.body);
+    let source = null;
+    if (req.body.from_template_id) source = await loadTemplate(req, req.body.from_template_id);
+    else if (req.body.from_profile_id) source = await loadOwned(req, req.body.from_profile_id);
+    const type = source ? source.type : d.type || 'company';
+    const blank = await one('SELECT data FROM profile_templates WHERE code = ?', [type === 'personal' ? 'personal' : 'company']);
+    const data = source ? source.data : blank ? JSON.parse(blank.data) : { sections: [] };
+    const row = {
+      name: d.name || (source ? `${source.name || source.title} (copy)` : 'New template'),
+      category: d.category || (source && source.category) || 'General',
+      type,
+      description: d.description ?? (source && source.description) ?? '',
+      data: cleanData(data),
+      is_active: d.is_active ?? 1,
+      staff_only: d.staff_only ?? 0,
+      sort_order: d.sort_order ?? 999,
+    };
+    const r = await query('INSERT INTO profile_templates SET ?', [row]);
+    res.status(201).json({ id: r.insertId });
+  })
+);
+
+admin.put(
+  '/templates/:id',
+  asyncHandler(async (req, res) => {
+    const t = await loadTemplate(req, req.params.id);
+    const d = templateData(req.body);
+    if (Object.keys(d).length) await query('UPDATE profile_templates SET ? WHERE id = ?', [d, t.id]);
+    res.json(parse(await one('SELECT * FROM profile_templates WHERE id = ?', [t.id])));
+  })
+);
+
+admin.delete(
+  '/templates/:id',
+  asyncHandler(async (req, res) => {
+    const t = await loadTemplate(req, req.params.id);
+    await query('DELETE FROM profile_templates WHERE id = ?', [t.id]); // profiles keep their own copy
+    res.json({ message: 'Template deleted' });
+  })
+);
+
+// bring back built-in templates that were deleted
+admin.post(
+  '/templates/restore',
+  asyncHandler(async (req, res) => {
+    const added = await seedTemplates(query, { onlyMissing: true });
+    res.json({ message: added ? `${added} built-in template(s) restored` : 'All built-in templates are already present' });
+  })
+);
+
 router.use('/admin', admin);
 
 router.get('/:id', asyncHandler(async (req, res) => res.json(await loadOwned(req, req.params.id))));
@@ -378,7 +505,7 @@ router.post(
     const p = await loadOwned(req, req.params.id);
     if (!isStaff(req.user)) await assertBelowLimit(req.user.id);
     const title = `${p.title} (copy)`;
-    const r = await query('INSERT INTO profiles SET ?', [{ user_id: req.user.id, type: p.type, title, slug: newSlug(title), data: JSON.stringify(p.data) }]);
+    const r = await query('INSERT INTO profiles SET ?', [{ user_id: req.user.id, type: p.type, template_id: p.template_id, title, slug: newSlug(title), data: JSON.stringify(p.data) }]);
     res.status(201).json({ id: r.insertId });
   })
 );

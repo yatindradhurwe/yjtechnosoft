@@ -329,6 +329,7 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
   await addColumn('users', 'company_name', 'VARCHAR(200) NULL');
   await addColumn('users', 'profile_limit', 'INT NULL');
   await addColumn('users', 'notes', 'TEXT NULL');
+  await addColumn('profiles', 'template_id', 'INT NULL');
   const roleCol = (await q("SELECT COLUMN_TYPE t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'"))[0];
   if (roleCol && !String(roleCol.t).includes("'customer'")) {
     await q("ALTER TABLE users MODIFY role ENUM('admin','hr','accounts','employee','customer') NOT NULL DEFAULT 'employee'");
@@ -353,6 +354,10 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
     await q('INSERT INTO users SET ?', [{ name: process.env.ADMIN_NAME || 'Administrator', email: adminEmail, role: 'admin', password_hash: await bcrypt.hash(process.env.ADMIN_PASSWORD || 'Admin@123', 10) }]);
     global.console.log(`✔ Admin user created: ${adminEmail} / ${process.env.ADMIN_PASSWORD || 'Admin@123'}`);
   }
+
+  // profile-builder template library (built-ins, editable by admins afterwards)
+  const added = await require('../src/services/profileTemplateLibrary').seedTemplates(q);
+  if (added) console.log(`✔ ${added} profile templates`);
 
   // YJ Technosoft's own company and founder profiles in the profile builder
   const logoDir = path.join(__dirname, '..', 'uploads', 'profiles');

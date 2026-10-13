@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  ArrowLeft, Building2, Download, ExternalLink, FileText, Globe, IdCard, Lock, Pencil, Plus, Repeat, Trash2, User, UserPlus, Users,
+  ArrowLeft, Building2, Copy, Download, ExternalLink, Eye, FileText, Globe, IdCard, LayoutTemplate, Lock, Pencil, Plus, Repeat, RotateCcw, Trash2, User, UserPlus, Users,
 } from 'lucide-react';
 import api, { errMsg } from '../../lib/api';
 import useFetch from '../../lib/useFetch';
@@ -10,6 +10,7 @@ import { fmtDate } from '../../lib/utils';
 import { Field, Modal, PageHeader, PageLoader, SearchInput, StatCard, StatusBadge, Switch, useConfirm } from '../../components/ui';
 import DataTable from '../../components/ui/DataTable';
 import { downloadProfilePdf, publicLink } from '../builder/Builder';
+import NewProfileModal, { TemplateDetailsFields, TemplatePreview, TemplateThumb } from '../builder/TemplatePicker';
 
 const BLANK = { name: '', email: '', phone: '', company_name: '', password: '', profile_limit: '', notes: '', status: 'active' };
 
@@ -72,6 +73,7 @@ function CustomerModal({ value, onClose, onSaved, defaultLimit }) {
 /* ------------------------------------------------------------------ profile table (shared) */
 function ProfilesTable({ rows, loading, reload, showOwner, pdfAvailable }) {
   const confirm = useConfirm();
+  const navigate = useNavigate();
   const [moving, setMoving] = useState(null);
   const togglePublic = async (p) => {
     try {
@@ -95,6 +97,15 @@ function ProfilesTable({ rows, loading, reload, showOwner, pdfAvailable }) {
       toast.error(errMsg(e));
     } finally {
       toast.dismiss(t);
+    }
+  };
+  const saveAsTemplate = async (p) => {
+    try {
+      const { data } = await api.post('/profiles/admin/templates', { from_profile_id: p.id, name: p.title, is_active: false });
+      toast.success('Saved as a hidden template. Review it, then switch it on.');
+      navigate(`/app/templates/${data.id}`);
+    } catch (e) {
+      toast.error(errMsg(e));
     }
   };
   const move = async () => {
@@ -151,6 +162,7 @@ function ProfilesTable({ rows, loading, reload, showOwner, pdfAvailable }) {
                 <Link to={`/app/profiles/${p.id}`} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" title="Open in editor"><Pencil className="h-4 w-4" /></Link>
                 <button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" title="Download PDF" onClick={() => download(p)}><Download className="h-4 w-4" /></button>
                 <button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" title="Move to another account" onClick={() => setMoving({ ...p, email: '' })}><Repeat className="h-4 w-4" /></button>
+                <button className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" title="Save as template" onClick={() => saveAsTemplate(p)}><LayoutTemplate className="h-4 w-4" /></button>
                 <button className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600" title="Delete" onClick={() => remove(p)}><Trash2 className="h-4 w-4" /></button>
               </div>
             ),
@@ -276,19 +288,10 @@ export function ProfileCustomerView() {
   const { data: c, loading, reload } = useFetch(`/profiles/admin/customers/${id}`);
   const { data: meta } = useFetch('/profiles/meta');
   const [edit, setEdit] = useState(null);
-  const [create, setCreate] = useState(null);
+  const [create, setCreate] = useState(false);
   const navigate = useNavigate();
   if (loading && !c) return <PageLoader />;
   if (!c) return <p className="text-slate-500">Customer not found.</p>;
-  const createProfile = async () => {
-    try {
-      const { data } = await api.post('/profiles', { ...create, owner_id: c.id });
-      toast.success('Profile created in the customer’s account');
-      navigate(`/app/profiles/${data.id}`);
-    } catch (e) {
-      toast.error(errMsg(e));
-    }
-  };
   return (
     <div>
       <Link to="/admin/profile-builder/customers" className="mb-4 inline-flex items-center gap-1 text-sm text-slate-500 hover:text-brand-700"><ArrowLeft className="h-4 w-4" /> Customers</Link>
@@ -299,7 +302,7 @@ export function ProfileCustomerView() {
         actions={
           <>
             <button className="btn-outline" onClick={() => setEdit({ ...c, password: '', profile_limit: c.profile_limit ?? '' })}><Pencil className="h-4 w-4" /> Edit</button>
-            <button className="btn-primary" onClick={() => setCreate({ template: 'company', name: c.company_name || c.name, title: '' })}><Plus className="h-4 w-4" /> Create profile for them</button>
+            <button className="btn-primary" onClick={() => setCreate(true)}><Plus className="h-4 w-4" /> Create profile for them</button>
           </>
         }
       />
@@ -313,25 +316,16 @@ export function ProfileCustomerView() {
       <h3 className="mb-3 font-semibold text-navy-900">Profiles</h3>
       <ProfilesTable rows={c.profiles} loading={loading} reload={reload} pdfAvailable={meta?.pdf ?? true} />
       <CustomerModal value={edit} defaultLimit={c.effective_limit} onClose={() => setEdit(null)} onSaved={() => { setEdit(null); reload(); }} />
-      <Modal
-        open={!!create}
-        onClose={() => setCreate(null)}
-        title={`New profile for ${c.company_name || c.name}`}
-        size="max-w-md"
-        footer={<><button className="btn-outline" onClick={() => setCreate(null)}>Cancel</button><button className="btn-primary" onClick={createProfile}>Create & open editor</button></>}
-      >
-        {create && (
-          <div className="space-y-4">
-            <Field label="Template">
-              <select className="input" value={create.template} onChange={(e) => setCreate({ ...create, template: e.target.value })}>
-                {(meta?.templates || []).map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-              </select>
-            </Field>
-            <Field label="Name on the cover"><input className="input" value={create.name} onChange={(e) => setCreate({ ...create, name: e.target.value })} /></Field>
-            <Field label="Profile title"><input className="input" value={create.title} onChange={(e) => setCreate({ ...create, title: e.target.value })} placeholder="e.g. Company profile 2026" /></Field>
-          </div>
-        )}
-      </Modal>
+      <NewProfileModal
+        open={create}
+        ownerId={c.id}
+        defaultName={c.company_name || c.name}
+        onClose={() => setCreate(false)}
+        onCreated={(p) => {
+          toast.success('Profile created in the customer’s account');
+          navigate(`/app/profiles/${p.id}`);
+        }}
+      />
     </div>
   );
 }
@@ -352,6 +346,141 @@ export function AllProfiles() {
         <select className="input" value={filters.owner} onChange={set('owner')}><option value="">All owners</option><option value="customers">Customers</option><option value="staff">Staff</option></select>
       </div>
       <ProfilesTable rows={data?.data} loading={loading} reload={reload} showOwner pdfAvailable={pdfAvailable} />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ template library */
+export function ProfileTemplates() {
+  const [filters, setFilters] = useState({ type: '', search: '', status: '' });
+  const { data, loading, reload } = useFetch('/profiles/admin/templates');
+  const [edit, setEdit] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const confirm = useConfirm();
+  const navigate = useNavigate();
+  const all = data?.data || [];
+  const categories = [...new Set(all.map((t) => t.category))].sort();
+  const rows = all.filter(
+    (t) =>
+      (!filters.type || t.type === filters.type) &&
+      (!filters.status || (filters.status === 'active' ? t.is_active : !t.is_active)) &&
+      (!filters.search || `${t.name} ${t.category} ${t.description}`.toLowerCase().includes(filters.search.toLowerCase()))
+  );
+  const groups = rows.reduce((g, t) => ((g[t.category] = g[t.category] || []).push(t), g), {});
+
+  const save = async () => {
+    try {
+      if (edit.id) await api.put(`/profiles/admin/templates/${edit.id}`, edit);
+      else {
+        const { data: r } = await api.post('/profiles/admin/templates', edit);
+        toast.success('Template created. Now add its content.');
+        navigate(`/app/templates/${r.id}`);
+        return;
+      }
+      toast.success('Template saved');
+      setEdit(null);
+      reload();
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+  };
+  const toggle = async (t) => {
+    await api.put(`/profiles/admin/templates/${t.id}`, { is_active: !t.is_active });
+    reload();
+  };
+  const duplicate = async (t) => {
+    const { data: r } = await api.post('/profiles/admin/templates', { from_template_id: t.id, name: `${t.name} (copy)` });
+    toast.success('Copy created');
+    navigate(`/app/templates/${r.id}`);
+  };
+  const remove = async (t) => {
+    if (!(await confirm({ title: 'Delete template?', text: `“${t.name}” will be removed from the template list. Profiles already made from it are not affected.` }))) return;
+    await api.delete(`/profiles/admin/templates/${t.id}`);
+    toast.success('Template deleted');
+    reload();
+  };
+  const restore = async () => {
+    const { data: r } = await api.post('/profiles/admin/templates/restore');
+    toast.success(r.message);
+    reload();
+  };
+
+  return (
+    <div>
+      <PageHeader
+        title="Templates"
+        subtitle="Templates customers choose from when they create a profile, grouped by category"
+        icon={LayoutTemplate}
+        actions={
+          <>
+            <button className="btn-outline" onClick={restore} title="Add back built-in templates that were deleted"><RotateCcw className="h-4 w-4" /> Restore built-ins</button>
+            <button className="btn-primary" onClick={() => setEdit({ name: '', category: '', type: 'company', description: '', is_active: true, staff_only: false, sort_order: 100 })}><Plus className="h-4 w-4" /> New template</button>
+          </>
+        }
+      />
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row">
+        <SearchInput className="flex-1" placeholder="Search templates or categories…" value={filters.search} onChange={(search) => setFilters({ ...filters, search })} />
+        <select className="input sm:w-48" value={filters.type} onChange={(e) => setFilters({ ...filters, type: e.target.value })}><option value="">Firms & individuals</option><option value="company">Firm / business</option><option value="personal">Individual</option></select>
+        <select className="input sm:w-40" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })}><option value="">All</option><option value="active">Visible</option><option value="hidden">Hidden</option></select>
+      </div>
+      {loading && !data ? (
+        <PageLoader />
+      ) : (
+        <div className="space-y-6">
+          {Object.entries(groups).map(([cat, list]) => (
+            <div key={cat}>
+              <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500">{cat} <span className="text-slate-400">({list.length})</span></h3>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {list.map((t) => (
+                  <div key={t.id} className={`card flex gap-3 p-3 ${t.is_active ? '' : 'opacity-60'}`}>
+                    <button type="button" className="w-16 shrink-0" onClick={() => setPreview(t)} title="Preview"><TemplateThumb t={t} /></button>
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="font-semibold leading-tight text-navy-900">{t.name}</p>
+                        <Switch checked={t.is_active} onChange={() => toggle(t)} />
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {t.type === 'personal' ? 'Individual' : 'Firm / business'} · used {t.used}×{t.staff_only ? ' · staff only' : ''}{t.code ? ' · built-in' : ''}
+                      </p>
+                      {t.description && <p className="mt-1 line-clamp-2 text-xs text-slate-500">{t.description}</p>}
+                      <div className="mt-auto flex flex-wrap gap-1 pt-2">
+                        <Link to={`/app/templates/${t.id}`} className="btn-primary btn-sm"><Pencil className="h-3.5 w-3.5" /> Edit content</Link>
+                        <button className="btn-outline btn-sm" onClick={() => setEdit({ ...t })}>Details</button>
+                        <button className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" title="Preview" onClick={() => setPreview(t)}><Eye className="h-4 w-4" /></button>
+                        <button className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100" title="Duplicate" onClick={() => duplicate(t)}><Copy className="h-4 w-4" /></button>
+                        <button className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600" title="Delete" onClick={() => remove(t)}><Trash2 className="h-4 w-4" /></button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          {!rows.length && <p className="py-10 text-center text-sm text-slate-500">No templates match.</p>}
+        </div>
+      )}
+      <Modal
+        open={!!edit}
+        onClose={() => setEdit(null)}
+        title={edit?.id ? 'Template details' : 'New template'}
+        size="max-w-xl"
+        footer={<><button className="btn-outline" onClick={() => setEdit(null)}>Cancel</button><button className="btn-primary" onClick={save}>{edit?.id ? 'Save' : 'Create & edit content'}</button></>}
+      >
+        {edit && (
+          <div className="space-y-4">
+            <TemplateDetailsFields value={edit} onChange={setEdit} categories={categories} allowType={!edit.id} />
+            {!edit.id && (
+              <Field label="Start from" hint="Copy an existing template, or start from the general layout for firms / individuals.">
+                <select className="input" value={edit.from_template_id || ''} onChange={(e) => setEdit({ ...edit, from_template_id: e.target.value || undefined })}>
+                  <option value="">General {edit.type === 'personal' ? 'individual' : 'firm'} layout</option>
+                  {all.filter((t) => t.type === edit.type).map((t) => <option key={t.id} value={t.id}>{t.category} – {t.name}</option>)}
+                </select>
+              </Field>
+            )}
+          </div>
+        )}
+      </Modal>
+      <TemplatePreview template={preview} onClose={() => setPreview(null)} />
     </div>
   );
 }

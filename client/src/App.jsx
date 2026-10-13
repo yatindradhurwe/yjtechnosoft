@@ -45,6 +45,7 @@ export default function App() {
       <Route path="app" element={lazyEl(<AppLayout />)}>
         <Route index element={lazyEl(<ProfileList />)} />
         <Route path="profiles/:id" element={lazyEl(<ProfileEditor />)} />
+        <Route path="templates/:id" element={lazyEl(<ProfileEditor mode="template" />)} />
       </Route>
       <Route path="forgot-password" element={<ForgotPassword />} />
       <Route path="reset-password" element={<ResetPassword />} />

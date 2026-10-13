@@ -1288,9 +1288,6 @@ CREATE TABLE `users` (
   `password_hash` varchar(255) NOT NULL,
   `role` enum('admin','hr','accounts','employee','customer') NOT NULL DEFAULT 'employee',
   `employee_id` int(11) DEFAULT NULL,
-  `company_name` varchar(200) DEFAULT NULL,
-  `profile_limit` int(11) DEFAULT NULL,
-  `notes` text DEFAULT NULL,
   `avatar` varchar(255) DEFAULT NULL,
   `status` enum('active','inactive') NOT NULL DEFAULT 'active',
   `last_login` datetime DEFAULT NULL,
@@ -1341,6 +1338,7 @@ CREATE TABLE `profiles` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `user_id` int(11) NOT NULL,
   `type` enum('company','personal') NOT NULL DEFAULT 'company',
+  `template_id` int(11) DEFAULT NULL,
   `title` varchar(200) NOT NULL,
   `slug` varchar(80) NOT NULL,
   `data` longtext NOT NULL,
@@ -1352,6 +1350,30 @@ CREATE TABLE `profiles` (
   UNIQUE KEY `slug` (`slug`),
   KEY `idx_profiles_user` (`user_id`),
   CONSTRAINT `fk_profiles_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Table structure for table `profile_templates` (template library; the
+-- built-in templates are added automatically on first server start)
+--
+
+DROP TABLE IF EXISTS `profile_templates`;
+CREATE TABLE `profile_templates` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `code` varchar(60) DEFAULT NULL,
+  `name` varchar(150) NOT NULL,
+  `category` varchar(100) NOT NULL,
+  `type` enum('company','personal') NOT NULL DEFAULT 'company',
+  `description` varchar(300) DEFAULT NULL,
+  `data` longtext NOT NULL,
+  `is_active` tinyint(1) NOT NULL DEFAULT 1,
+  `staff_only` tinyint(1) NOT NULL DEFAULT 0,
+  `sort_order` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `code` (`code`),
+  KEY `idx_profile_templates_category` (`category`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;

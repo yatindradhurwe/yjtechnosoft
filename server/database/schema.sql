@@ -774,6 +774,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT NOT NULL,
   type ENUM('company','personal') NOT NULL DEFAULT 'company',
+  template_id INT NULL,
   title VARCHAR(200) NOT NULL,
   slug VARCHAR(80) NOT NULL UNIQUE,
   data LONGTEXT NOT NULL,
@@ -783,4 +784,20 @@ CREATE TABLE IF NOT EXISTS profiles (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_profiles_user (user_id),
   CONSTRAINT fk_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS profile_templates (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(60) NULL UNIQUE,
+  name VARCHAR(150) NOT NULL,
+  category VARCHAR(100) NOT NULL,
+  type ENUM('company','personal') NOT NULL DEFAULT 'company',
+  description VARCHAR(300) NULL,
+  data LONGTEXT NOT NULL,
+  is_active TINYINT(1) NOT NULL DEFAULT 1,
+  staff_only TINYINT(1) NOT NULL DEFAULT 0,
+  sort_order INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_profile_templates_category (category)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

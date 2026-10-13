@@ -195,11 +195,4 @@ function yjFounder() {
   return t;
 }
 
-const TEMPLATES = {
-  company: { type: 'company', label: 'Company profile', build: companyTemplate },
-  personal: { type: 'personal', label: 'Personal / professional profile', build: personalTemplate },
-  'yj-company': { type: 'company', label: 'YJ Technosoft company profile', build: yjCompany, staffOnly: true },
-  'yj-founder': { type: 'personal', label: 'YJ Technosoft founder profile', build: yjFounder, staffOnly: true },
-};
-
-module.exports = { TEMPLATES, companyTemplate, personalTemplate, yjCompany, yjFounder };
+module.exports = { companyTemplate, personalTemplate, yjCompany, yjFounder };
