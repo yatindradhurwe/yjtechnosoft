@@ -327,6 +327,29 @@ const BUILTIN_PRODUCTS = [
     sort_order: 2,
     is_featured: 1,
   },
+  {
+    name: 'GuardOps',
+    slug: 'guardops',
+    tagline: 'Business management for security agencies',
+    stage: 'Live',
+    logo: '/uploads/products/guardops-logo.png',
+    image: '/uploads/products/guardops.png',
+    short_description: 'An online system for security service companies to run their business in one place: guards, client sites, duties and day-to-day operations.',
+    description: `<p><strong>GuardOps</strong> is built for security agencies that manage guards across many client sites. It replaces registers, phone calls and spreadsheets with one organised online system for the office and the field.</p>
+<h3>What it helps you manage</h3>
+<ul><li><strong>Guards</strong> – your security staff and their details in one place.</li>
+<li><strong>Clients and sites</strong> – the clients you serve and the sites you guard.</li>
+<li><strong>Duties</strong> – who is posted where, and when.</li>
+<li><strong>Daily operations</strong> – a clear view of the business from the office.</li></ul>
+<h3>Built for</h3>
+<p>Private security agencies and manpower service companies looking to run their operations more efficiently.</p>`,
+    features: 'Built for security agencies\nGuards, clients and sites in one place\nDuty planning across client sites\nDay-to-day operations from the office\nAccess from any device, online',
+    audience: 'Security agencies and manpower service companies',
+    website_url: 'https://guard-ops.yjtechnosoft.com',
+    cta_text: 'Open GuardOps',
+    sort_order: 3,
+    is_featured: 1,
+  },
 ];
 
 /**
