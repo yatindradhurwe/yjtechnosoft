@@ -1,16 +1,31 @@
 {
-  "client": { "name": "Example Client Pvt Ltd", "contact_person": "Mr Example", "email": "client@example.com", "phone": "+91 00000 00000", "city": "Raipur", "state": "Chhattisgarh" },
+  "client": {
+    "name": "Example Client Pvt Ltd",
+    "contact_person": "Mr Example",
+    "email": "client@example.com",
+    "phone": "+91 00000 00000",
+    "city": "Raipur",
+    "state": "Chhattisgarh"
+  },
   "quotation": {
     "quote_date": "2026-10-14",
     "valid_until": "2026-11-13",
     "subject": "Quotation – Website Development",
     "hsn_sac": "998314",
-    "unit": "Lot",
     "tax_rate": 18,
     "items": [
-      ["Requirement study & UI/UX design", 25000],
-      ["Website development with admin panel", 60000],
-      ["Deployment & training", 10000]
+      [
+        "Requirement study & UI/UX design",
+        25000
+      ],
+      [
+        "Website development with admin panel",
+        60000
+      ],
+      [
+        "Deployment & training",
+        10000
+      ]
     ],
     "notes": "Payment terms: 50% advance, 50% on delivery.",
     "terms": "1. Delivery: 6 weeks from work order.\n2. Quotation valid for 30 days."

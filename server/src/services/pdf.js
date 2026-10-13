@@ -146,12 +146,14 @@ function signatureBlock(doc, s, x = BOX.right - 190, { noBreak = false } = {}) {
 function itemsTable(doc, items) {
   const showHsn = items.some((i) => i.hsn_sac);
   const showTax = items.some((i) => Number(i.tax_rate) > 0);
+  // fixed-price lines (every quantity 1, no unit): Qty and Rate would only repeat the amount, so leave them out
+  const showQty = items.some((i) => Number(i.quantity) !== 1 || (i.unit && i.unit !== 'Nos'));
   const cols = [
     { key: 'sn', label: '#', width: 24, align: 'center' },
     { key: 'description', label: 'Description', width: 0, align: 'left' },
     showHsn && { key: 'hsn_sac', label: 'HSN/SAC', width: 54, align: 'center' },
-    { key: 'quantity', label: 'Qty', width: 38, align: 'center' },
-    { key: 'rate', label: 'Rate', width: 70, align: 'right' },
+    showQty && { key: 'quantity', label: 'Qty', width: 38, align: 'center' },
+    showQty && { key: 'rate', label: 'Rate', width: 70, align: 'right' },
     showTax && { key: 'tax_rate', label: 'GST', width: 38, align: 'center' },
     { key: 'amount', label: 'Amount', width: 80, align: 'right' },
   ].filter(Boolean);
