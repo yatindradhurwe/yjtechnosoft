@@ -116,7 +116,7 @@ export function ServiceCard({ s, i = 0 }) {
             <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 transition group-hover:text-accent-400">
               Learn more <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
             </span>
-            {s.starting_price && <span className="text-xs font-semibold text-slate-400 group-hover:text-white/60">from {s.starting_price}</span>}
+            {s.starting_price && <span className="text-xs font-semibold text-slate-400 group-hover:text-white/60">{/\d/.test(s.starting_price) ? `from ${s.starting_price}` : s.starting_price}</span>}
           </div>
         </div>
       </Link>
@@ -145,6 +145,87 @@ export function PortfolioCard({ p, i = 0 }) {
           {p.short_description && <p className="mt-2 line-clamp-2 text-sm text-slate-500">{p.short_description}</p>}
         </div>
       </Link>
+    </Reveal>
+  );
+}
+
+/** Small "Live" / "Beta" / "Coming soon" label for products */
+export function StageBadge({ stage, className }) {
+  if (!stage) return null;
+  const live = /live/i.test(stage);
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider', live ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700', className)}>
+      <span className={cn('h-1.5 w-1.5 rounded-full', live ? 'bg-emerald-500' : 'bg-amber-500')} /> {stage}
+    </span>
+  );
+}
+
+export function ProductCard({ p, i = 0 }) {
+  return (
+    <Reveal delay={(i % 3) * 0.08}>
+      <Link to={`/products/${p.slug}`} className="group flex h-full flex-col overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200/70 transition hover:-translate-y-1 hover:shadow-soft">
+        <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-navy-900 to-brand-700">
+          {p.image ? (
+            <img src={asset(p.image)} alt={p.name} className="h-full w-full object-cover object-top transition duration-700 group-hover:scale-105" />
+          ) : (
+            <div className="flex h-full items-center justify-center font-display text-5xl font-black text-white/20">{p.name}</div>
+          )}
+        </div>
+        <div className="flex flex-1 flex-col p-6">
+          <div className="flex items-center gap-3">
+            {p.logo && <img src={asset(p.logo)} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain" />}
+            <div className="min-w-0">
+              <h3 className="truncate text-lg font-semibold">{p.name}</h3>
+              <StageBadge stage={p.stage} />
+            </div>
+          </div>
+          {p.tagline && <p className="mt-3 font-medium text-navy-900">{p.tagline}</p>}
+          {p.short_description && <p className="mt-2 line-clamp-3 text-sm text-slate-500">{p.short_description}</p>}
+          <span className="mt-auto inline-flex items-center gap-1.5 pt-5 text-sm font-semibold text-brand-700">
+            Learn more <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+          </span>
+        </div>
+      </Link>
+    </Reveal>
+  );
+}
+
+/** Large product block for the home page: screenshot on one side, details on the other */
+export function ProductShowcase({ p, flip = false }) {
+  const features = lines(p.features).slice(0, 5);
+  return (
+    <Reveal>
+      <div className={cn('grid items-center gap-8 lg:grid-cols-2 lg:gap-14', flip && 'lg:[&>*:first-child]:order-2')}>
+        <Link to={`/products/${p.slug}`} className="group block overflow-hidden rounded-3xl bg-navy-900 shadow-soft ring-1 ring-slate-200/70">
+          {p.image ? (
+            <img src={asset(p.image)} alt={p.name} className="w-full transition duration-700 group-hover:scale-[1.03]" />
+          ) : (
+            <div className="flex aspect-[16/9] items-center justify-center font-display text-4xl font-black text-white/25">{p.name}</div>
+          )}
+        </Link>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-3">
+            {p.logo && <img src={asset(p.logo)} alt="" className="h-12 w-12 rounded-2xl object-contain" />}
+            <h3 className="text-2xl font-bold sm:text-3xl">{p.name}</h3>
+            <StageBadge stage={p.stage} />
+          </div>
+          {p.tagline && <p className="mt-3 text-lg font-medium text-brand-700">{p.tagline}</p>}
+          {p.short_description && <p className="mt-3 text-slate-600">{p.short_description}</p>}
+          {features.length > 0 && (
+            <ul className="mt-5 space-y-2">
+              {features.map((f) => (
+                <li key={f} className="flex items-start gap-2 text-sm text-slate-700"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> {f}</li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-7 flex flex-wrap gap-3">
+            {p.website_url && (
+              <a href={p.website_url} target="_blank" rel="noreferrer" className="btn-primary">{p.cta_text || 'Visit website'} <ArrowUpRight className="h-4 w-4" /></a>
+            )}
+            <Link to={`/products/${p.slug}`} className={p.website_url ? 'btn-outline' : 'btn-primary'}>Learn more <ArrowRight className="h-4 w-4" /></Link>
+          </div>
+        </div>
+      </div>
     </Reveal>
   );
 }

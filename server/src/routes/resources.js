@@ -41,6 +41,14 @@ const resources = {
     order: 'sort_order ASC, id DESC',
     roles: CMS,
   },
+  products: {
+    table: 'products',
+    fields: ['name', 'slug', 'tagline', 'stage', 'logo', 'image', 'short_description', 'description', 'features', 'audience', 'website_url', 'cta_text', 'sort_order', 'is_featured', 'status'],
+    search: ['name', 'tagline'],
+    slugFrom: 'name',
+    order: 'sort_order ASC, id DESC',
+    roles: CMS,
+  },
   testimonials: {
     table: 'testimonials',
     fields: ['name', 'designation', 'company', 'photo', 'message', 'rating', 'sort_order', 'status'],

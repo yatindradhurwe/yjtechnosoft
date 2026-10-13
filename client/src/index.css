@@ -23,7 +23,7 @@
   .label { @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500; }
   .card { @apply rounded-2xl border border-slate-200/80 bg-white shadow-sm; }
   .badge { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize; }
-  .section { @apply py-20 lg:py-28; }
+  .section { @apply py-14 sm:py-20 lg:py-28; }
   .eyebrow { @apply inline-flex items-center gap-2 rounded-full bg-brand-50 px-4 py-1.5 text-xs font-bold uppercase tracking-[0.18em] text-brand-700; }
   .text-gradient { @apply bg-gradient-to-r from-brand-500 via-sky-400 to-accent-400 bg-clip-text text-transparent; }
   .table-x { @apply min-w-full divide-y divide-slate-200 text-sm; }

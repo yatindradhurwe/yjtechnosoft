@@ -41,6 +41,23 @@ const CMS = {
     ],
     defaults: { status: 'active', is_featured: 1, sort_order: 0 },
   },
+  products: {
+    title: 'Products',
+    subtitle: 'Your own software products, shown on the home page and the Products page',
+    columns: [{ key: 'logo', label: '', render: thumb('image') }, { key: 'name', label: 'Product', render: (r) => <div><p className="font-medium">{r.name}</p><p className="text-xs text-slate-500">{r.tagline}</p></div> }, { key: 'stage', label: 'Stage' }, { key: 'sort_order', label: 'Order' }, { key: 'status', label: 'Status' }],
+    fields: [
+      { name: 'name', label: 'Product name', required: true }, { name: 'slug', label: 'URL slug', hint: 'Auto-generated if empty' },
+      { name: 'tagline', label: 'Tagline', span: 2 }, { name: 'stage', label: 'Stage', type: 'select', options: ['Live', 'Beta', 'Coming soon'], noEmpty: true },
+      { name: 'audience', label: 'Built for', placeholder: 'Firms, contractors, professionals…' },
+      { name: 'website_url', label: 'Product website', placeholder: 'https://…', hint: 'Leave empty to show only "Request a demo"' }, { name: 'cta_text', label: 'Website button text', placeholder: 'Visit website' },
+      { name: 'short_description', label: 'Short description', type: 'textarea', span: 2, rows: 2 },
+      { name: 'features', label: 'Key features (one per line)', type: 'lines', span: 2 },
+      { name: 'description', label: 'Full description', type: 'rich', span: 2 },
+      { name: 'logo', label: 'Logo (square)', type: 'image', folder: 'products' }, { name: 'image', label: 'Screenshot / banner', type: 'image', folder: 'products' },
+      { name: 'is_featured', label: 'Show on home page', type: 'switch' }, SORT, STATUS,
+    ],
+    defaults: { status: 'active', is_featured: 1, sort_order: 0, stage: 'Live' },
+  },
   portfolio: {
     title: 'Portfolio',
     columns: [{ key: 'image', label: '', render: thumb('image') }, { key: 'title', label: 'Project' }, { key: 'category', label: 'Category' }, { key: 'client_name', label: 'Client' }, { key: 'status', label: 'Status' }],

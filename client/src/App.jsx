@@ -2,7 +2,7 @@ import { lazy, Suspense } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import SiteLayout from './components/site/Layout';
 import Home from './pages/site/Home';
-import { About, Services, ServiceDetail, Portfolio, PortfolioDetail, Blog, BlogPost, Careers, CareerDetail, Contact, GetQuote, CmsPage, NotFound } from './pages/site/Pages';
+import { About, Services, ServiceDetail, Products, ProductDetail, Portfolio, PortfolioDetail, Blog, BlogPost, Careers, CareerDetail, Contact, GetQuote, CmsPage, NotFound } from './pages/site/Pages';
 import { Login, ForgotPassword, ResetPassword } from './pages/auth/Auth';
 import { PageLoader } from './components/ui';
 import SharePage from './pages/site/SharePage';
@@ -18,6 +18,8 @@ export default function App() {
         <Route path="about" element={<About />} />
         <Route path="services" element={<Services />} />
         <Route path="services/:slug" element={<ServiceDetail />} />
+        <Route path="products" element={<Products />} />
+        <Route path="products/:slug" element={<ProductDetail />} />
         <Route path="portfolio" element={<Portfolio />} />
         <Route path="portfolio/:slug" element={<PortfolioDetail />} />
         <Route path="blog" element={<Blog />} />

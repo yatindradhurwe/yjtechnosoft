@@ -343,6 +343,37 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
     global.console.log(`✔ Admin user created: ${adminEmail} / ${process.env.ADMIN_PASSWORD || 'Admin@123'}`);
   }
 
+  // our own products (MakeMyProfile first); images ship in assets/products
+  if (!(await count('products'))) {
+    const dir = path.join(__dirname, '..', 'uploads', 'products');
+    fs.mkdirSync(dir, { recursive: true });
+    for (const f of ['makemyprofile.png', 'makemyprofile-logo.png']) {
+      if (!fs.existsSync(path.join(dir, f))) fs.copyFileSync(path.join(__dirname, '..', 'assets', 'products', f), path.join(dir, f));
+    }
+    await q('INSERT INTO products SET ?', [{
+      name: 'MakeMyProfile',
+      slug: 'makemyprofile',
+      tagline: 'Company & personal profiles, ready as PDF',
+      stage: 'Live',
+      logo: '/uploads/products/makemyprofile-logo.png',
+      image: '/uploads/products/makemyprofile.png',
+      short_description: 'An online platform where firms and professionals create a premium company profile or personal profile from ready templates, edit every section and download a print-ready PDF.',
+      description: `<p><strong>MakeMyProfile</strong> helps businesses, institutions and professionals present themselves the way large companies do – with a well-designed profile document – without hiring a designer.</p>
+<h3>How it works</h3>
+<ol><li><strong>Pick a template</strong> – choose Firm / Business or Individual, then your category: IT, construction, legal, CA, healthcare, education, NGO, government supplier, doctor, advocate, student and more.</li>
+<li><strong>Fill in your details</strong> – edit every section, upload your logo, photos and project screenshots, and choose your colours. Changes are saved automatically.</li>
+<li><strong>Download the PDF</strong> – an A4, print-ready profile with cover page and page numbers, ready for clients, tenders and government offices.</li></ol>
+<h3>Built for</h3>
+<p>Contractors and suppliers preparing tender documents, consultants and agencies making profiles for their clients, firms introducing themselves to new customers, and professionals who need a polished profile or resume.</p>`,
+      features: '30+ templates for firms and individuals\nCategory-wise templates: IT, construction, legal, CA, healthcare, education, NGO, government supplier…\nSection-by-section editor with live preview\nYour logo, photos and brand colours\nPrint-ready A4 PDF download\nShareable public link\nAdmin panel to manage customers, profiles and templates',
+      audience: 'Firms, contractors, consultants, institutions and professionals',
+      website_url: '',
+      cta_text: 'Create your profile',
+      sort_order: 1,
+      is_featured: 1,
+    }]);
+  }
+
   if (!(await count('sliders'))) {
     await q('INSERT INTO sliders (badge, title, highlight, subtitle, button_text, button_link, button2_text, button2_link, sort_order) VALUES ?', [[
       ['🚀 Trusted IT Partner since 2021', 'We build software that', 'grows your business', 'Websites, custom software, mobile apps and e-governance solutions – designed, developed and supported by one expert team.', 'Get Free Quote', '/get-quote', 'Our Services', '/services', 1],
