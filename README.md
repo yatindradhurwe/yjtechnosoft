@@ -190,6 +190,20 @@ The team gets a notification when a client **opens** an invoice, quotation or ag
 * Users are notified of: new leads and quote requests, job applications, leave requests and decisions, task assignments and comments, payments received, clients viewing or accepting documents, expiring servers and agreements, and announcements.
 * VAPID keys are generated automatically on first use. Web push needs the site on **HTTPS** (localhost works for testing).
 
+### Profile Builder (SaaS) – company & personal profiles as PDF
+Anyone can sign up at **/signup** (or from **Profile Builder** in the website menu) and build their own profile. The public page is **/profile-builder** and the app is **/app**.
+
+* **Profiles live in the database** (`profiles` table, one row per profile, sections stored as JSON) and are fully editable at any time.
+* **Templates:** company profile, personal / professional profile. Admins also get the YJ Technosoft company and founder profiles, which are added to the admin account on first start.
+* **Editor:** add, reorder, duplicate, hide or delete sections: text, key facts, cards, bullet lists, tables, projects (with screenshots), timeline, tags, image gallery and a contact page. Upload a logo, photo and project images; pick a colour theme or your own colours. Changes save automatically and the preview updates as you type.
+* **PDF download:** A4, print-ready, with a cover page, header bar and page-numbered footer. The server renders it with headless Chromium. If the server has no Chromium (typical shared/cPanel hosting), the download button opens a print-ready page and the browser's **Save as PDF** is used instead.
+* **Public link:** switch on *Public link* in the editor to share `/p/<link>`; visitors can view and download the PDF. Links contain a random part and are off by default.
+* **Customers** (`customer` role) only see the profile builder. They cannot open the admin panel or any staff, HR or billing API.
+* **Admin:** *System › Profile Builder* opens the builder. *Show all customers' profiles* lists every profile with its owner, and a profile can be created directly in a customer's account (*New profile › Create in a customer's account*).
+* **Settings** (Admin › Settings, or the `settings` table): `profile_limit` (profiles per customer, default 10) and `profile_signup_enabled` (`1`/`0`).
+
+**PDF engine on a VPS:** install Chromium (`sudo apt install chromium` or `chromium-browser`) – it is detected automatically. Set `CHROME_PATH` in `server/.env` if it is installed somewhere else.
+
 ### Roles
 | Role | Access |
 |------|--------|
@@ -197,6 +211,7 @@ The team gets a notification when a client **opens** an invoice, quotation or ag
 | HR | Employees, attendance, leaves, payroll, recruitment, letters, projects, tasks and the vault |
 | Accounts | Clients, quotations, invoices, payments, servers, expenses, leads, payroll, agreements and the vault |
 | Employee | Self-service portal: check-in/out, attendance calendar, leaves, tasks, daily reports, payslips, letters |
+| Customer | Profile Builder only (`/app`): their own profiles, PDF download and public links. Created by self sign-up. |
 
 Any HR, accounts or admin user who is linked to an employee profile also gets the self-service menu.
 
@@ -210,12 +225,14 @@ client/                 React app (public website + admin panel)
   src/components/ui     design system (modal, table, form fields, send dialog…)
   src/pages/site        public pages
   src/pages/admin       admin & employee portal pages
+  src/pages/builder     profile builder (dashboard, editor, public profile page, landing)
 server/
   assets/               letterhead.jpg, logo, Poppins fonts used in PDFs
   database/schema.sql   all tables
   database/seed.js      setup script (schema + default content + letter templates)
   src/routes/           auth, public, billing, hr, work, recruitment, documents, settings, generic CRUD
-  src/services/         pdf.js (letterhead PDFs), notify.js (email/SMS/WhatsApp), documents.js, cron.js
+  src/services/         pdf.js (letterhead PDFs), notify.js (email/SMS/WhatsApp), documents.js, cron.js,
+                        profileRender.js / profilePdf.js / profileTemplates.js (profile builder)
   uploads/              uploaded files (resumes, documents and receipts need a staff login)
 ```
 

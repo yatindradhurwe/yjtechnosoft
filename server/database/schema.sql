@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(150) NOT NULL UNIQUE,
   phone VARCHAR(30),
   password_hash VARCHAR(255) NOT NULL,
-  role ENUM('admin','hr','accounts','employee') NOT NULL DEFAULT 'employee',
+  role ENUM('admin','hr','accounts','employee','customer') NOT NULL DEFAULT 'employee',
   employee_id INT NULL,
   avatar VARCHAR(255),
   status ENUM('active','inactive') NOT NULL DEFAULT 'active',
@@ -763,3 +763,21 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+-- ---------------------------------------------------------------------------
+-- Profile builder (company / personal profiles, downloadable as PDF)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS profiles (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  type ENUM('company','personal') NOT NULL DEFAULT 'company',
+  title VARCHAR(200) NOT NULL,
+  slug VARCHAR(80) NOT NULL UNIQUE,
+  data LONGTEXT NOT NULL,
+  is_public TINYINT(1) NOT NULL DEFAULT 0,
+  download_count INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_profiles_user (user_id),
+  CONSTRAINT fk_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

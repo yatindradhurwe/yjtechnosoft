@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Image, Briefcase, FileText, MessageSquareQuote, Users, Building2, Cpu, BarChart3, BadgeIndianRupee, HelpCircle, FileStack,
   Inbox, Mail, Receipt, FileSpreadsheet, Wallet, Package, Server, CreditCard, UserCog, CalendarCheck, CalendarOff, PartyPopper, Banknote, Network,
   BadgeCheck, CalendarRange, Megaphone, UserPlus, ClipboardList, FileSignature, FolderKanban, ListTodo, NotebookPen, Settings, Shield, Bell, LogOut,
-  Menu, X, ChevronDown, UserCircle, ExternalLink, Clock, Layers, FolderLock } from 'lucide-react';
+  Menu, X, ChevronDown, UserCircle, ExternalLink, Clock, Layers, FolderLock, IdCard } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSite } from '../context/SiteContext';
 import { asset, cn } from '../lib/utils';
@@ -107,6 +107,7 @@ export const NAV = [
     items: [
       { label: 'Settings', to: '/admin/settings', icon: Settings },
       { label: 'Users & Roles', to: '/admin/users', icon: Shield },
+      { label: 'Profile Builder', to: '/app', icon: IdCard },
       { label: 'Message Logs', to: '/admin/logs', icon: Bell },
     ],
   },
@@ -186,6 +187,7 @@ export default function AdminLayout() {
 
   if (loading) return <PageLoader />;
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(pathname)}`} replace />;
+  if (user.role === 'customer') return <Navigate to="/app" replace />;
 
   const brand = (
     <Link to="/admin" className="flex items-center gap-3 px-5 py-5">

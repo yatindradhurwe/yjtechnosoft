@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const rateLimit = require('express-rate-limit');
 const { query, one } = require('../config/db');
-const { signToken, authenticate, authorize } = require('../middleware/auth');
+const { signToken, authenticate, authenticateAny, authorize } = require('../middleware/auth');
 const { asyncHandler, HttpError } = require('../middleware/error');
 const { sendEmail } = require('../services/notify');
 const { getSettings } = require('../utils/settings');
@@ -39,15 +39,35 @@ router.post(
   })
 );
 
+const signupLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false });
+
+// Self sign-up for the profile builder – creates a customer account (never staff)
+router.post(
+  '/signup',
+  signupLimiter,
+  asyncHandler(async (req, res) => {
+    if ((await getSettings()).profile_signup_enabled === '0') throw new HttpError(403, 'Sign-ups are closed at the moment');
+    const name = String(req.body.name || '').trim().slice(0, 150);
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const password = String(req.body.password || '');
+    if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, 'Name and a valid email are required');
+    if (password.length < 8) throw new HttpError(400, 'Password must be at least 8 characters');
+    if (await one('SELECT id FROM users WHERE email = ?', [email])) throw new HttpError(409, 'An account with this email already exists. Please login.');
+    const r = await query('INSERT INTO users SET ?', [{ name, email, phone: String(req.body.phone || '').slice(0, 30) || null, role: 'customer', password_hash: await bcrypt.hash(password, 10) }]);
+    const user = { id: r.insertId, role: 'customer' };
+    res.status(201).json({ token: signToken(user), user: await userPayload(user.id) });
+  })
+);
+
 router.get(
   '/me',
-  authenticate,
+  authenticateAny,
   asyncHandler(async (req, res) => res.json(await userPayload(req.user.id)))
 );
 
 router.put(
   '/profile',
-  authenticate,
+  authenticateAny,
   asyncHandler(async (req, res) => {
     const data = pick(req.body, ['name', 'phone', 'avatar']);
     if (!data.name) delete data.name;
@@ -58,7 +78,7 @@ router.put(
 
 router.put(
   '/password',
-  authenticate,
+  authenticateAny,
   asyncHandler(async (req, res) => {
     const { current_password, new_password } = req.body;
     if (!new_password || new_password.length < 6) throw new HttpError(400, 'New password must be at least 6 characters');

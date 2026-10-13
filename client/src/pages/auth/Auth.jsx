@@ -53,14 +53,14 @@ export function Login() {
   const [f, setF] = useState({ email: '', password: '' });
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
-  if (user) return <Navigate to="/admin" replace />;
+  if (user) return <Navigate to={user.role === 'customer' ? '/app' : '/admin'} replace />;
   const submit = async (e) => {
     e.preventDefault();
     setBusy(true);
     try {
       const u = await login(f.email, f.password);
       toast.success(`Welcome back, ${u.name.split(' ')[0]}!`);
-      navigate(params.get('next') || '/admin');
+      navigate(params.get('next') || (u.role === 'customer' ? '/app' : '/admin'));
     } catch (err) {
       toast.error(errMsg(err));
     } finally {
@@ -89,6 +89,47 @@ export function Login() {
           {busy ? <Spinner className="h-5 w-5 text-white" /> : <LogIn className="h-5 w-5" />} Login
         </button>
       </form>
+      <p className="mt-6 text-center text-sm text-slate-500">
+        New here? <Link to="/signup" className="font-semibold text-brand-700 hover:underline">Create a free account</Link> to build your profile.
+      </p>
+    </Shell>
+  );
+}
+
+export function Signup() {
+  const { signup, user } = useAuth();
+  const navigate = useNavigate();
+  const [f, setF] = useState({ name: '', email: '', phone: '', password: '' });
+  const [busy, setBusy] = useState(false);
+  if (user) return <Navigate to={user.role === 'customer' ? '/app' : '/admin'} replace />;
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const submit = async (e) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await signup(f);
+      toast.success('Account created. Let’s build your first profile!');
+      navigate('/app');
+    } catch (err) {
+      toast.error(errMsg(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Shell title="Create your account" subtitle="Build a professional company or personal profile and download it as a PDF.">
+      <form onSubmit={submit} className="space-y-4">
+        <input className="input !py-3" required placeholder="Full name" value={f.name} onChange={set('name')} />
+        <input className="input !py-3" type="email" required placeholder="Email address" value={f.email} onChange={set('email')} />
+        <input className="input !py-3" placeholder="Phone (optional)" value={f.phone} onChange={set('phone')} />
+        <input className="input !py-3" type="password" required minLength={8} placeholder="Password (min 8 characters)" value={f.password} onChange={set('password')} />
+        <button className="btn-primary w-full !py-3.5 text-base" disabled={busy}>
+          {busy ? <Spinner className="h-5 w-5 text-white" /> : <LogIn className="h-5 w-5" />} Create account
+        </button>
+      </form>
+      <p className="mt-6 text-center text-sm text-slate-500">
+        Already have an account? <Link to="/login" className="font-semibold text-brand-700 hover:underline">Login</Link>
+      </p>
     </Shell>
   );
 }

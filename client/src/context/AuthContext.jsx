@@ -34,6 +34,13 @@ export function AuthProvider({ children }) {
     return data.user;
   };
 
+  const signup = async (form) => {
+    const { data } = await api.post('/auth/signup', form);
+    setToken(data.token);
+    setUser(data.user);
+    return data.user;
+  };
+
   const logout = () => {
     setToken(null);
     setUser(null);
@@ -41,7 +48,7 @@ export function AuthProvider({ children }) {
 
   const hasRole = (...roles) => !!user && (user.role === 'admin' || roles.includes(user.role));
 
-  return <AuthContext.Provider value={{ user, setUser, loading, login, logout, refresh, hasRole }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, setUser, loading, login, signup, logout, refresh, hasRole }}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => useContext(AuthContext);

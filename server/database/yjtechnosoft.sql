@@ -1286,7 +1286,7 @@ CREATE TABLE `users` (
   `email` varchar(150) NOT NULL,
   `phone` varchar(30) DEFAULT NULL,
   `password_hash` varchar(255) NOT NULL,
-  `role` enum('admin','hr','accounts','employee') NOT NULL DEFAULT 'employee',
+  `role` enum('admin','hr','accounts','employee','customer') NOT NULL DEFAULT 'employee',
   `employee_id` int(11) DEFAULT NULL,
   `avatar` varchar(255) DEFAULT NULL,
   `status` enum('active','inactive') NOT NULL DEFAULT 'active',
@@ -1328,6 +1328,29 @@ CREATE TABLE `vault_documents` (
 
 /*!40000 ALTER TABLE `vault_documents` DISABLE KEYS */;
 /*!40000 ALTER TABLE `vault_documents` ENABLE KEYS */;
+--
+-- Table structure for table `profiles` (profile builder; the YJ Technosoft
+-- company and founder profiles are added automatically on first server start)
+--
+
+DROP TABLE IF EXISTS `profiles`;
+CREATE TABLE `profiles` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `type` enum('company','personal') NOT NULL DEFAULT 'company',
+  `title` varchar(200) NOT NULL,
+  `slug` varchar(80) NOT NULL,
+  `data` longtext NOT NULL,
+  `is_public` tinyint(1) NOT NULL DEFAULT 0,
+  `download_count` int(11) NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `slug` (`slug`),
+  KEY `idx_profiles_user` (`user_id`),
+  CONSTRAINT `fk_profiles_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;

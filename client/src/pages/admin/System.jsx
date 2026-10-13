@@ -75,6 +75,13 @@ const SECTIONS = {
       { name: 'birthday_wishes', label: 'Email birthday wishes to employees', type: 'switch' },
     ],
   },
+  profiles: {
+    label: 'Profile Builder',
+    fields: [
+      { name: 'profile_signup_enabled', label: 'Allow customers to sign up', type: 'switch' },
+      { name: 'profile_limit', label: 'Profiles allowed per customer', type: 'number' },
+    ],
+  },
   integrations: {
     label: 'Email / SMS / WhatsApp',
     groups: [
@@ -222,7 +229,7 @@ export function Users() {
   };
   return (
     <div>
-      <PageHeader title="Users & Roles" subtitle="Admin = everything · HR = people, recruitment, letters, tasks · Accounts = clients & billing · Employee = self-service portal" icon={Shield} actions={<button className="btn-primary" onClick={() => setEdit({ name: '', email: '', phone: '', role: 'employee', status: 'active', password: '', employee_id: '' })}><Plus className="h-4 w-4" /> Add user</button>} />
+      <PageHeader title="Users & Roles" subtitle="Admin = everything · HR = people, recruitment, letters, tasks · Accounts = clients & billing · Employee = self-service portal · Customer = profile builder only" icon={Shield} actions={<button className="btn-primary" onClick={() => setEdit({ name: '', email: '', phone: '', role: 'employee', status: 'active', password: '', employee_id: '' })}><Plus className="h-4 w-4" /> Add user</button>} />
       <DataTable
         loading={loading}
         rows={data?.data}
@@ -242,7 +249,7 @@ export function Users() {
             <Field label="Email"><input className="input" value={edit.email} onChange={(e) => setEdit({ ...edit, email: e.target.value })} /></Field>
             <Field label="Phone"><input className="input" value={edit.phone || ''} onChange={(e) => setEdit({ ...edit, phone: e.target.value })} /></Field>
             <Field label={edit.id ? 'New password (optional)' : 'Password'}><input className="input" type="password" value={edit.password} onChange={(e) => setEdit({ ...edit, password: e.target.value })} /></Field>
-            <Field label="Role"><select className="input" value={edit.role} onChange={(e) => setEdit({ ...edit, role: e.target.value })}>{['admin', 'hr', 'accounts', 'employee'].map((r) => <option key={r} value={r}>{titleCase(r)}</option>)}</select></Field>
+            <Field label="Role"><select className="input" value={edit.role} onChange={(e) => setEdit({ ...edit, role: e.target.value })}>{['admin', 'hr', 'accounts', 'employee', 'customer'].map((r) => <option key={r} value={r}>{titleCase(r)}</option>)}</select></Field>
             <Field label="Status"><select className="input" value={edit.status} onChange={(e) => setEdit({ ...edit, status: e.target.value })}><option value="active">Active</option><option value="inactive">Inactive</option></select></Field>
             <Field label="Linked employee profile" className="sm:col-span-2" hint="Link to use attendance, leave & tasks from this login">
               <select className="input" value={edit.employee_id} onChange={(e) => setEdit({ ...edit, employee_id: e.target.value || null })}>

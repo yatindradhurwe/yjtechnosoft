@@ -27,6 +27,7 @@ app.use('/uploads', privateUploads, express.static(UPLOAD_ROOT, { maxAge: '7d' }
 // Same files under /api so they work when only /api is forwarded to Node (separate frontend hosting)
 app.use('/api/uploads', privateUploads, express.static(UPLOAD_ROOT, { maxAge: '7d' }));
 app.use('/assets', express.static(path.join(__dirname, '..', 'assets'), { maxAge: '30d' }));
+app.use('/api/assets', express.static(path.join(__dirname, '..', 'assets'), { maxAge: '30d' }));
 
 // Health check – open /api/health in the browser to see if the database is connected
 app.get('/api/health', async (req, res) => {
@@ -39,6 +40,7 @@ app.get('/api/health', async (req, res) => {
 });
 app.use('/api/public', require('./routes/public'));
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/profiles', require('./routes/profiles'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/billing', require('./routes/billing'));
 app.use('/api/documents', require('./routes/documents'));

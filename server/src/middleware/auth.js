@@ -7,7 +7,7 @@ function signToken(user) {
   return jwt.sign({ id: user.id, role: user.role }, SECRET(), { expiresIn: process.env.JWT_EXPIRES || '7d' });
 }
 
-async function authenticate(req, res, next) {
+async function loadUser(req, res, next, { allowCustomer }) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : req.query.token;
   if (!token) return res.status(401).json({ message: 'Authentication required' });
@@ -19,11 +19,18 @@ async function authenticate(req, res, next) {
     );
     if (!user || user.status !== 'active') return res.status(401).json({ message: 'Account disabled or not found' });
     req.user = user;
-    next();
   } catch (e) {
     return res.status(401).json({ message: 'Session expired, please login again' });
   }
+  // Profile-builder customers never reach staff, HR or billing routes
+  if (!allowCustomer && req.user.role === 'customer') return res.status(403).json({ message: 'This area is for staff only' });
+  next();
 }
+
+/** Staff login (admin, hr, accounts, employee) */
+const authenticate = (req, res, next) => loadUser(req, res, next, { allowCustomer: false });
+/** Any signed-in user, including profile-builder customers */
+const authenticateAny = (req, res, next) => loadUser(req, res, next, { allowCustomer: true });
 
 /** authorize('admin','hr') – admin always passes */
 function authorize(...roles) {
@@ -36,4 +43,4 @@ function authorize(...roles) {
 
 const isStaffManager = (user) => ['admin', 'hr'].includes(user.role);
 
-module.exports = { signToken, authenticate, authorize, isStaffManager };
+module.exports = { signToken, authenticate, authenticateAny, authorize, isStaffManager };

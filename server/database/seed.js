@@ -80,6 +80,9 @@ const SETTINGS = {
   salary_hra_pct: '20',
   payroll_missing_as_absent: '1',
   office_ip_whitelist: '',
+  // profile builder
+  profile_signup_enabled: '1',
+  profile_limit: '10',
   // notifications
   notify_admin_emails: 'yjtechnosoft@gmail.com',
   mail_from_name: 'YJTechnosoft',
@@ -322,6 +325,11 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
   await addColumn('invoices', 'project_id', 'INT NULL');
   await addColumn('invoices', 'viewed_at', 'DATETIME NULL');
   await addColumn('contracts', 'viewed_at', 'DATETIME NULL');
+  // profile-builder customers
+  const roleCol = (await q("SELECT COLUMN_TYPE t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'"))[0];
+  if (roleCol && !String(roleCol.t).includes("'customer'")) {
+    await q("ALTER TABLE users MODIFY role ENUM('admin','hr','accounts','employee','customer') NOT NULL DEFAULT 'employee'");
+  }
   // logo/favicon now ship with the website build (works when site & API are served separately)
   await q("UPDATE settings SET `value` = '/logo.png' WHERE `key` = 'logo' AND `value` = '/assets/logo.png'");
   await q("UPDATE settings SET `value` = '/favicon.png' WHERE `key` = 'favicon' AND `value` = '/assets/logo-icon.png'");
@@ -341,6 +349,26 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
   if (!(await q('SELECT id FROM users WHERE email = ?', [adminEmail])).length) {
     await q('INSERT INTO users SET ?', [{ name: process.env.ADMIN_NAME || 'Administrator', email: adminEmail, role: 'admin', password_hash: await bcrypt.hash(process.env.ADMIN_PASSWORD || 'Admin@123', 10) }]);
     global.console.log(`✔ Admin user created: ${adminEmail} / ${process.env.ADMIN_PASSWORD || 'Admin@123'}`);
+  }
+
+  // YJ Technosoft's own company and founder profiles in the profile builder
+  const logoDir = path.join(__dirname, '..', 'uploads', 'profiles');
+  fs.mkdirSync(logoDir, { recursive: true });
+  if (!fs.existsSync(path.join(logoDir, 'yjtechnosoft-logo.png'))) {
+    fs.copyFileSync(path.join(__dirname, '..', 'assets', 'logo.png'), path.join(logoDir, 'yjtechnosoft-logo.png'));
+  }
+  if (!(await count('profiles'))) {
+    const admin = (await q('SELECT id FROM users WHERE email = ?', [adminEmail]))[0];
+    if (admin) {
+      const { yjCompany, yjFounder } = require('../src/services/profileTemplates');
+      const company = yjCompany();
+      company.basics.logo = '/uploads/profiles/yjtechnosoft-logo.png';
+      const rand = () => require('crypto').randomBytes(4).toString('hex');
+      await q('INSERT INTO profiles (user_id, type, title, slug, data) VALUES ?', [[
+        [admin.id, 'company', 'YJ Technosoft – Corporate Capability Profile', `yj-technosoft-profile-${rand()}`, JSON.stringify(company)],
+        [admin.id, 'personal', 'Founder & Director Profile', `yj-founder-profile-${rand()}`, JSON.stringify(yjFounder())],
+      ]]);
+    }
   }
 
   if (!(await count('sliders'))) {

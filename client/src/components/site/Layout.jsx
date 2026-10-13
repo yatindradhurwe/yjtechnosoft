@@ -16,6 +16,7 @@ const NAV = [
   { to: '/about', label: 'About' },
   { to: '/services', label: 'Services', mega: true },
   { to: '/portfolio', label: 'Portfolio' },
+  { to: '/profile-builder', label: 'Profile Builder' },
   { to: '/careers', label: 'Careers' },
   { to: '/blog', label: 'Blog' },
   { to: '/contact', label: 'Contact' },
