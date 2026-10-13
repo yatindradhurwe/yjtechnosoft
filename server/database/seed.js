@@ -325,7 +325,10 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
   await addColumn('invoices', 'project_id', 'INT NULL');
   await addColumn('invoices', 'viewed_at', 'DATETIME NULL');
   await addColumn('contracts', 'viewed_at', 'DATETIME NULL');
-  // profile-builder customers
+  // profile-builder customers: firm name, notes and a per-customer profile limit
+  await addColumn('users', 'company_name', 'VARCHAR(200) NULL');
+  await addColumn('users', 'profile_limit', 'INT NULL');
+  await addColumn('users', 'notes', 'TEXT NULL');
   const roleCol = (await q("SELECT COLUMN_TYPE t FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'role'"))[0];
   if (roleCol && !String(roleCol.t).includes("'customer'")) {
     await q("ALTER TABLE users MODIFY role ENUM('admin','hr','accounts','employee','customer') NOT NULL DEFAULT 'employee'");

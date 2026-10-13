@@ -10,6 +10,7 @@ import { MyAttendance, MyLeaves, MyPayslips, MyLetters } from './pages/admin/My'
 import { Settings, Users, Logs, Profile } from './pages/admin/System';
 import { NotFound } from './pages/site/Pages';
 import { Contracts, ContractForm, ContractTemplates, Vault, ProjectView } from './pages/admin/Contracts';
+import { ProfileOverview, ProfileCustomers, ProfileCustomerView, AllProfiles } from './pages/admin/ProfileBuilder';
 
 const ACC = ['accounts'];
 const HR = ['hr'];
@@ -54,6 +55,12 @@ export default function AdminRoutes() {
         <Route path="contract-templates" element={guard(ACC, <ContractTemplates />)} />
         <Route path="vault" element={guard([...ACC, ...HR], <Vault />)} />
         <Route path="projects/:id" element={guard([...ACC, ...HR], <ProjectView />)} />
+
+        {/* profile builder (admin only) */}
+        <Route path="profile-builder" element={guard(ADMIN, <ProfileOverview />)} />
+        <Route path="profile-builder/customers" element={guard(ADMIN, <ProfileCustomers />)} />
+        <Route path="profile-builder/customers/:id" element={guard(ADMIN, <ProfileCustomerView />)} />
+        <Route path="profile-builder/profiles" element={guard(ADMIN, <AllProfiles />)} />
 
         {/* HR */}
         <Route path="employees" element={guard(HR, <Employees />)} />

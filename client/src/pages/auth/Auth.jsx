@@ -99,7 +99,7 @@ export function Login() {
 export function Signup() {
   const { signup, user } = useAuth();
   const navigate = useNavigate();
-  const [f, setF] = useState({ name: '', email: '', phone: '', password: '' });
+  const [f, setF] = useState({ name: '', company_name: '', email: '', phone: '', password: '' });
   const [busy, setBusy] = useState(false);
   if (user) return <Navigate to={user.role === 'customer' ? '/app' : '/admin'} replace />;
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
@@ -120,6 +120,7 @@ export function Signup() {
     <Shell title="Create your account" subtitle="Build a professional company or personal profile and download it as a PDF.">
       <form onSubmit={submit} className="space-y-4">
         <input className="input !py-3" required placeholder="Full name" value={f.name} onChange={set('name')} />
+        <input className="input !py-3" placeholder="Firm / company name (optional)" value={f.company_name} onChange={set('company_name')} />
         <input className="input !py-3" type="email" required placeholder="Email address" value={f.email} onChange={set('email')} />
         <input className="input !py-3" placeholder="Phone (optional)" value={f.phone} onChange={set('phone')} />
         <input className="input !py-3" type="password" required minLength={8} placeholder="Password (min 8 characters)" value={f.password} onChange={set('password')} />

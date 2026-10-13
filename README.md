@@ -199,8 +199,13 @@ Anyone can sign up at **/signup** (or from **Profile Builder** in the website me
 * **PDF download:** A4, print-ready, with a cover page, header bar and page-numbered footer. The server renders it with headless Chromium. If the server has no Chromium (typical shared/cPanel hosting), the download button opens a print-ready page and the browser's **Save as PDF** is used instead.
 * **Public link:** switch on *Public link* in the editor to share `/p/<link>`; visitors can view and download the PDF. Links contain a random part and are off by default.
 * **Customers** (`customer` role) only see the profile builder. They cannot open the admin panel or any staff, HR or billing API.
-* **Admin:** *System › Profile Builder* opens the builder. *Show all customers' profiles* lists every profile with its owner, and a profile can be created directly in a customer's account (*New profile › Create in a customer's account*).
-* **Settings** (Admin › Settings, or the `settings` table): `profile_limit` (profiles per customer, default 10) and `profile_signup_enabled` (`1`/`0`).
+* **Admin panel › Profile Builder** (admin only):
+  * **Overview** – customers, profiles, public links, PDF downloads and the newest sign-ups.
+  * **Customers & Firms** – add a customer or firm yourself (contact person, firm name, email login, phone, password), edit them, reset their password, deactivate (they can no longer log in) or delete them with all their profiles. Each customer can have their own profile limit (empty = site default) and internal notes such as plan or payment details. Search by name, firm, email or phone.
+  * **Customer page** – their details and every profile they own: open it in the editor, download the PDF, switch the public link on or off, move it to another account or delete it. *Create profile for them* builds a profile directly in their account.
+  * **All Profiles** – every profile with its owner, filtered by type, public/private and customer/staff. *Move* hands a profile you built over to a client's account.
+  * **Open Builder** – the editor itself (`/app`), where admins can also open any customer's profile.
+* **Settings** (Admin › Settings › Profile Builder): allow customer sign-ups on/off, and the default number of profiles per customer (10).
 
 **PDF engine on a VPS:** install Chromium (`sudo apt install chromium` or `chromium-browser`) – it is detected automatically. Set `CHROME_PATH` in `server/.env` if it is installed somewhere else.
 

@@ -14,7 +14,7 @@ const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHead
 
 async function userPayload(id) {
   const user = await one(
-    `SELECT u.id, u.name, u.email, u.phone, u.role, u.avatar, u.employee_id, e.emp_code, e.photo AS employee_photo,
+    `SELECT u.id, u.name, u.email, u.phone, u.role, u.avatar, u.employee_id, u.company_name, e.emp_code, e.photo AS employee_photo,
             d.name AS designation_name
      FROM users u
      LEFT JOIN employees e ON e.id = u.employee_id
@@ -53,7 +53,7 @@ router.post(
     if (!name || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, 'Name and a valid email are required');
     if (password.length < 8) throw new HttpError(400, 'Password must be at least 8 characters');
     if (await one('SELECT id FROM users WHERE email = ?', [email])) throw new HttpError(409, 'An account with this email already exists. Please login.');
-    const r = await query('INSERT INTO users SET ?', [{ name, email, phone: String(req.body.phone || '').slice(0, 30) || null, role: 'customer', password_hash: await bcrypt.hash(password, 10) }]);
+    const r = await query('INSERT INTO users SET ?', [{ name, email, phone: String(req.body.phone || '').slice(0, 30) || null, company_name: String(req.body.company_name || '').trim().slice(0, 200) || null, role: 'customer', password_hash: await bcrypt.hash(password, 10) }]);
     const user = { id: r.insertId, role: 'customer' };
     res.status(201).json({ token: signToken(user), user: await userPayload(user.id) });
   })
@@ -69,7 +69,7 @@ router.put(
   '/profile',
   authenticateAny,
   asyncHandler(async (req, res) => {
-    const data = pick(req.body, ['name', 'phone', 'avatar']);
+    const data = pick(req.body, ['name', 'phone', 'avatar', 'company_name']);
     if (!data.name) delete data.name;
     if (Object.keys(data).length) await query('UPDATE users SET ? WHERE id = ?', [data, req.user.id]);
     res.json(await userPayload(req.user.id));

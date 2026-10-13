@@ -102,12 +102,21 @@ export const NAV = [
     ],
   },
   {
+    group: 'Profile Builder',
+    roles: [],
+    items: [
+      { label: 'Overview', to: '/admin/profile-builder', icon: IdCard, end: true },
+      { label: 'Customers & Firms', to: '/admin/profile-builder/customers', icon: Users },
+      { label: 'All Profiles', to: '/admin/profile-builder/profiles', icon: FileText },
+      { label: 'Open Builder', to: '/app', icon: ExternalLink },
+    ],
+  },
+  {
     group: 'System',
     roles: [],
     items: [
       { label: 'Settings', to: '/admin/settings', icon: Settings },
       { label: 'Users & Roles', to: '/admin/users', icon: Shield },
-      { label: 'Profile Builder', to: '/app', icon: IdCard },
       { label: 'Message Logs', to: '/admin/logs', icon: Bell },
     ],
   },
@@ -140,11 +149,12 @@ function Sidebar({ onNavigate }) {
                 <NavLink
                   key={it.to}
                   to={it.to}
+                  end={it.end}
                   onClick={onNavigate}
                   className={({ isActive }) =>
                     cn(
                       'group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition',
-                      isActive || pathname.startsWith(`${it.to}/`) ? 'bg-brand-600 text-white shadow-lg shadow-brand-900/40' : 'text-white/65 hover:bg-white/5 hover:text-white'
+                      isActive || (!it.end && pathname.startsWith(`${it.to}/`)) ? 'bg-brand-600 text-white shadow-lg shadow-brand-900/40' : 'text-white/65 hover:bg-white/5 hover:text-white'
                     )
                   }
                 >
