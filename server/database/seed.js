@@ -350,6 +350,28 @@ const BUILTIN_PRODUCTS = [
     sort_order: 3,
     is_featured: 1,
   },
+  {
+    name: 'Auto Deploy Panel',
+    slug: 'auto-deploy-panel',
+    tagline: 'Automated deployment for web applications',
+    stage: 'Live',
+    logo: '/uploads/products/autodeploy-logo.png',
+    image: '/uploads/products/autodeploy.png',
+    short_description: 'A deployment panel that automates putting web applications live on your servers, so releases take fewer manual steps and less time.',
+    description: `<p><strong>Auto Deploy Panel</strong> brings application deployment into one web panel. Instead of logging in to servers and repeating the same commands for every release, your team deploys and updates applications from a single place.</p>
+<h3>Why teams use it</h3>
+<ul><li><strong>Fewer manual steps</strong> – deployments follow the same automated process every time.</li>
+<li><strong>Faster releases</strong> – updates go live without hands-on server work.</li>
+<li><strong>One place for all your apps</strong> – see and manage your deployments from one panel.</li></ul>
+<h3>Built for</h3>
+<p>Software teams, agencies and businesses that run their own web applications and want a simpler, more reliable way to release updates.</p>`,
+    features: 'Automated deployment of web applications\nDeploy and update apps from one panel\nFewer manual server steps for every release\nAccess from any device, online',
+    audience: 'Software teams, agencies and businesses running their own web apps',
+    website_url: 'http://automate-deployment.yjtechnosoft.com/',
+    cta_text: 'Open Auto Deploy Panel',
+    sort_order: 4,
+    is_featured: 1,
+  },
 ];
 
 /**

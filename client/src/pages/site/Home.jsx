@@ -299,7 +299,7 @@ export default function Home() {
               </Link>
             </div>
             <div className="space-y-16">
-              {products.slice(0, 3).map((p, i) => <ProductShowcase key={p.id} p={p} flip={i % 2 === 1} />)}
+              {products.slice(0, 4).map((p, i) => <ProductShowcase key={p.id} p={p} flip={i % 2 === 1} />)}
             </div>
           </div>
         </section>
