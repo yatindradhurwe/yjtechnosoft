@@ -10,7 +10,8 @@
     "dev:server": "npm run dev --prefix server",
     "dev:client": "npm run dev --prefix client",
     "build": "npm run build --prefix client",
-    "start": "npm start --prefix server"
+    "start": "npm start --prefix server",
+    "reset-admin": "npm run reset-admin --prefix server --"
   },
   "engines": {
     "node": ">=18"

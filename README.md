@@ -52,6 +52,10 @@ Open **http://localhost:5173** for the website and **http://localhost:5173/login
 
 ---
 
+**Can't log in as admin?** The server prints the admin login email(s) every time it starts (`ℹ Admin login: …`). To reset or create an admin:
+* `npm run reset-admin -- you@example.com NewPassword123` (or without arguments to use `ADMIN_EMAIL` / `ADMIN_PASSWORD` from `server/.env`), or
+* without terminal access (cPanel): set `ADMIN_RESET=1` in `server/.env`, restart the app, log in, then remove `ADMIN_RESET`.
+
 ## 2. Production deployment
 
 The Express server also serves the built React app, so you deploy **one Node.js application**.

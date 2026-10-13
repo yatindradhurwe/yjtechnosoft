@@ -286,6 +286,23 @@ const CONTRACT_TEMPLATES = [
  * Creates/upgrades all tables and inserts missing default data. Idempotent –
  * runs automatically every time the server starts, and via `npm run setup`.
  */
+/**
+ * Creates the administrator from ADMIN_EMAIL / ADMIN_PASSWORD, or – if that
+ * email already exists – makes it an active admin with that password.
+ */
+async function resetAdmin(q, { email, password, name } = {}) {
+  email = String(email || process.env.ADMIN_EMAIL || 'admin@yjtechnosoft.com').trim().toLowerCase();
+  password = String(password || process.env.ADMIN_PASSWORD || 'Admin@123');
+  const hash = await bcrypt.hash(password, 10);
+  const existing = (await q('SELECT id FROM users WHERE email = ?', [email]))[0];
+  if (existing) {
+    await q("UPDATE users SET role = 'admin', status = 'active', password_hash = ? WHERE id = ?", [hash, existing.id]);
+    return { email, password, created: false };
+  }
+  await q('INSERT INTO users SET ?', [{ name: name || process.env.ADMIN_NAME || 'Administrator', email, role: 'admin', password_hash: hash }]);
+  return { email, password, created: true };
+}
+
 async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
   const { database: dbName, ...cfg } = dbSettings();
   const console = quiet ? { log: () => {} } : global.console;
@@ -350,10 +367,14 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
 
   // admin user
   const adminEmail = (process.env.ADMIN_EMAIL || 'admin@yjtechnosoft.com').toLowerCase();
-  if (!(await q('SELECT id FROM users WHERE email = ?', [adminEmail])).length) {
-    await q('INSERT INTO users SET ?', [{ name: process.env.ADMIN_NAME || 'Administrator', email: adminEmail, role: 'admin', password_hash: await bcrypt.hash(process.env.ADMIN_PASSWORD || 'Admin@123', 10) }]);
-    global.console.log(`✔ Admin user created: ${adminEmail} / ${process.env.ADMIN_PASSWORD || 'Admin@123'}`);
+  if (!(await q('SELECT id FROM users WHERE email = ?', [adminEmail])).length || process.env.ADMIN_RESET === '1') {
+    const r = await resetAdmin(q);
+    global.console.log(`✔ Admin ${r.created ? 'user created' : 'password reset'}: ${r.email} / ${r.password}`);
+    if (process.env.ADMIN_RESET === '1') global.console.log('⚠  Remove ADMIN_RESET=1 from server/.env now, or the password is reset on every start.');
   }
+  // say which accounts can open the admin panel, so the login is never a guess
+  const adminList = await q("SELECT email FROM users WHERE role = 'admin' AND status = 'active' ORDER BY id");
+  global.console.log(`ℹ Admin login: ${adminList.map((x) => x.email).join(', ') || 'none'}`);
 
   // profile-builder template library (built-ins, editable by admins afterwards)
   const added = await require('../src/services/profileTemplateLibrary').seedTemplates(q);
@@ -492,7 +513,7 @@ async function demo(q) {
   console.log('✔ Demo employees (password Employee@123): rohit@, priya@, aman@yjtechnosoft.com');
 }
 
-module.exports = { setupDatabase };
+module.exports = { setupDatabase, resetAdmin };
 
 if (require.main === module) setupDatabase({ demo: process.argv.includes('--demo') }).catch((e) => {
   console.error('✖ Setup failed:', e.message);
