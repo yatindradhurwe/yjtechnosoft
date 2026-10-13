@@ -57,6 +57,9 @@ async function createDoc(meta = {}) {
   doc.registerFont('medium', FONT.medium);
   doc.registerFont('semibold', FONT.semibold);
   doc.registerFont('bold', FONT.bold);
+  // The bundled Poppins font has no ₹ glyph – print "Rs." instead of a broken box
+  const drawText = doc.text.bind(doc);
+  doc.text = (text, ...rest) => drawText(typeof text === 'string' ? text.replace(/₹\s?/g, 'Rs. ') : text, ...rest);
 
   const paintBackground = () => {
     doc.save();

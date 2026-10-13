@@ -147,6 +147,8 @@ Website forms:
 * **Servers & Domains** – hosting, VPS, domain, SSL, email and AMC records per client, with expiry tracking. **Bill** creates a renewal invoice. **Renewed** extends the expiry by one billing cycle. Automatic reminders go out 30/15/7/3/1/0 days before expiry (configurable).
 * **Expenses**, **Items catalogue** (quick line items with HSN/SAC and GST), and **Leads**, where one click converts a lead to a client and a quotation.
 
+* **Import a quotation from a file:** `npm run import-quotation -- path/to/quotation.json` creates the client (if new) and the quotation directly in the database, numbered as usual. See `server/scripts/quotation-example.json` for the format. Keep client files outside the repository.
+
 ### HR & people
 * **Employees & interns** – full profile, documents, bank/PAN/Aadhaar, reporting manager and shift. Creates the employee's portal login and emails the credentials.
 * **Attendance** – employees check in and out from their dashboard. Late marking uses the shift start plus a grace period. A short day becomes a half day. Work from home is supported. Location and IP are captured, and check-in can optionally be restricted to office IPs. HR has a daily register for manual marking and a monthly report with CSV export.
