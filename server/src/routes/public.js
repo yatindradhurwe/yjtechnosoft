@@ -275,8 +275,6 @@ router.get(
       pdf_url: `/api/public/documents/${type}/${id}/${token}`,
       company: {
         name: s.company_name, logo: s.logo, phone: s.phone, email: s.email, whatsapp: s.whatsapp_number, address: s.address, site_url: s.site_url,
-        // payment details only on invoices
-        ...(type === 'invoice' ? { upi_id: s.upi_id, bank_account_holder: s.bank_account_holder, bank_name: s.bank_name, bank_account_number: s.bank_account_number, bank_ifsc: s.bank_ifsc, bank_branch: s.bank_branch } : {}),
       },
     });
   })
