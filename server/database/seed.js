@@ -279,6 +279,56 @@ const CONTRACT_TEMPLATES = [
   },
 ];
 
+
+/** Our own products shown on the website (images ship in assets/products) */
+const BUILTIN_PRODUCTS = [
+  {
+    name: 'MakeMyProfile',
+    slug: 'makemyprofile',
+    tagline: 'Company & personal profiles, ready as PDF',
+    stage: 'Live',
+    logo: '/uploads/products/makemyprofile-logo.png',
+    image: '/uploads/products/makemyprofile.png',
+    short_description: 'An online platform where firms and professionals create a premium company profile or personal profile from ready templates, edit every section and download a print-ready PDF.',
+    description: `<p><strong>MakeMyProfile</strong> helps businesses, institutions and professionals present themselves the way large companies do – with a well-designed profile document – without hiring a designer.</p>
+<h3>How it works</h3>
+<ol><li><strong>Pick a template</strong> – choose Firm / Business or Individual, then your category: IT, construction, legal, CA, healthcare, education, NGO, government supplier, doctor, advocate, student and more.</li>
+<li><strong>Fill in your details</strong> – edit every section, upload your logo, photos and project screenshots, and choose your colours. Changes are saved automatically.</li>
+<li><strong>Download the PDF</strong> – an A4, print-ready profile with cover page and page numbers, ready for clients, tenders and government offices.</li></ol>
+<h3>Built for</h3>
+<p>Contractors and suppliers preparing tender documents, consultants and agencies making profiles for their clients, firms introducing themselves to new customers, and professionals who need a polished profile or resume.</p>`,
+    features: '30+ templates for firms and individuals\nCategory-wise templates: IT, construction, legal, CA, healthcare, education, NGO, government supplier…\nSection-by-section editor with live preview\nYour logo, photos and brand colours\nPrint-ready A4 PDF download\nShareable public link\nAdmin panel to manage customers, profiles and templates',
+    audience: 'Firms, contractors, consultants, institutions and professionals',
+    website_url: '',
+    cta_text: 'Create your profile',
+    sort_order: 1,
+    is_featured: 1,
+  },
+  {
+    name: 'Litigation & Legal Chamber',
+    slug: 'litigation',
+    tagline: 'Case, hearing and client management for advocates and law firms',
+    stage: 'Live',
+    logo: '/uploads/products/litigation-logo.png',
+    image: '/uploads/products/litigation.png',
+    short_description: 'An online practice-management system for advocates and legal chambers: track litigation, stay on top of hearing dates, keep client records and manage legal documents in one place.',
+    description: `<p><strong>Litigation &amp; Legal Chamber</strong> brings the day-to-day work of a legal practice into one secure online system, so advocates and their teams always know what is due and where every case stands.</p>
+<h3>What it covers</h3>
+<ul><li><strong>Litigation tracking</strong> – keep every case with its court, parties, stage and history.</li>
+<li><strong>Hearing schedules</strong> – see upcoming hearing dates at a glance and plan the week ahead.</li>
+<li><strong>Client records</strong> – client details and their matters, organised and easy to find.</li>
+<li><strong>Legal document management</strong> – store and retrieve the documents for each case.</li></ul>
+<h3>Built for</h3>
+<p>Independent advocates, legal chambers and law firms who want to move from diaries and files to an organised digital practice.</p>`,
+    features: 'Litigation and case tracking\nHearing schedules and upcoming dates\nClient records\nLegal document management\nAccess from any device, online',
+    audience: 'Advocates, legal chambers and law firms',
+    website_url: 'https://litigation.yjtechnosoft.com',
+    cta_text: 'Open Litigation',
+    sort_order: 2,
+    is_featured: 1,
+  },
+];
+
 /**
  * Creates/upgrades all tables and inserts missing default data. Idempotent –
  * runs automatically every time the server starts, and via `npm run setup`.
@@ -343,36 +393,23 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
     global.console.log(`✔ Admin user created: ${adminEmail} / ${process.env.ADMIN_PASSWORD || 'Admin@123'}`);
   }
 
-  // our own products (MakeMyProfile first); images ship in assets/products
-  if (!(await count('products'))) {
-    const dir = path.join(__dirname, '..', 'uploads', 'products');
-    fs.mkdirSync(dir, { recursive: true });
-    for (const f of ['makemyprofile.png', 'makemyprofile-logo.png']) {
-      if (!fs.existsSync(path.join(dir, f))) fs.copyFileSync(path.join(__dirname, '..', 'assets', 'products', f), path.join(dir, f));
+  // our own products. Each built-in product is added once (remembered in
+  // settings.seeded_products), so a product deleted in the admin stays deleted.
+  const seeded = new Set(String((await q("SELECT `value` FROM settings WHERE `key` = 'seeded_products'"))[0]?.value || '').split(',').filter(Boolean));
+  const productDir = path.join(__dirname, '..', 'uploads', 'products');
+  for (const prod of BUILTIN_PRODUCTS) {
+    if (seeded.has(prod.slug)) continue;
+    if (!(await q('SELECT id FROM products WHERE slug = ?', [prod.slug])).length) {
+      fs.mkdirSync(productDir, { recursive: true });
+      for (const f of [prod.logo, prod.image].filter(Boolean).map((u) => path.basename(u))) {
+        const src = path.join(__dirname, '..', 'assets', 'products', f);
+        if (fs.existsSync(src) && !fs.existsSync(path.join(productDir, f))) fs.copyFileSync(src, path.join(productDir, f));
+      }
+      await q('INSERT INTO products SET ?', [prod]);
     }
-    await q('INSERT INTO products SET ?', [{
-      name: 'MakeMyProfile',
-      slug: 'makemyprofile',
-      tagline: 'Company & personal profiles, ready as PDF',
-      stage: 'Live',
-      logo: '/uploads/products/makemyprofile-logo.png',
-      image: '/uploads/products/makemyprofile.png',
-      short_description: 'An online platform where firms and professionals create a premium company profile or personal profile from ready templates, edit every section and download a print-ready PDF.',
-      description: `<p><strong>MakeMyProfile</strong> helps businesses, institutions and professionals present themselves the way large companies do – with a well-designed profile document – without hiring a designer.</p>
-<h3>How it works</h3>
-<ol><li><strong>Pick a template</strong> – choose Firm / Business or Individual, then your category: IT, construction, legal, CA, healthcare, education, NGO, government supplier, doctor, advocate, student and more.</li>
-<li><strong>Fill in your details</strong> – edit every section, upload your logo, photos and project screenshots, and choose your colours. Changes are saved automatically.</li>
-<li><strong>Download the PDF</strong> – an A4, print-ready profile with cover page and page numbers, ready for clients, tenders and government offices.</li></ol>
-<h3>Built for</h3>
-<p>Contractors and suppliers preparing tender documents, consultants and agencies making profiles for their clients, firms introducing themselves to new customers, and professionals who need a polished profile or resume.</p>`,
-      features: '30+ templates for firms and individuals\nCategory-wise templates: IT, construction, legal, CA, healthcare, education, NGO, government supplier…\nSection-by-section editor with live preview\nYour logo, photos and brand colours\nPrint-ready A4 PDF download\nShareable public link\nAdmin panel to manage customers, profiles and templates',
-      audience: 'Firms, contractors, consultants, institutions and professionals',
-      website_url: '',
-      cta_text: 'Create your profile',
-      sort_order: 1,
-      is_featured: 1,
-    }]);
+    seeded.add(prod.slug);
   }
+  await q("INSERT INTO settings (`key`, `value`) VALUES ('seeded_products', ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)", [[...seeded].join(',')]);
 
   if (!(await count('sliders'))) {
     await q('INSERT INTO sliders (badge, title, highlight, subtitle, button_text, button_link, button2_text, button2_link, sort_order) VALUES ?', [[

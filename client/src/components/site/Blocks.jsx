@@ -164,7 +164,7 @@ export function ProductCard({ p, i = 0 }) {
   return (
     <Reveal delay={(i % 3) * 0.08}>
       <Link to={`/products/${p.slug}`} className="group flex h-full flex-col overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-slate-200/70 transition hover:-translate-y-1 hover:shadow-soft">
-        <div className="relative aspect-[16/9] overflow-hidden bg-gradient-to-br from-navy-900 to-brand-700">
+        <div className="relative aspect-[9/4] overflow-hidden bg-gradient-to-br from-navy-900 to-brand-700">
           {p.image ? (
             <img src={asset(p.image)} alt={p.name} className="h-full w-full object-cover object-top transition duration-700 group-hover:scale-105" />
           ) : (
