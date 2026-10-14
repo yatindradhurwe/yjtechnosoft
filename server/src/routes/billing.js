@@ -95,12 +95,12 @@ async function saveQuotation(req, id) {
     project_id: b.project_id || null,
     notes: b.notes || null,
     terms: b.terms ?? s.quotation_terms ?? null,
-    status: b.status || 'draft',
     subtotal: t.subtotal,
     discount: t.discount,
     tax_total: t.tax_total,
     total: t.total,
   };
+  if (b.status && ['draft', 'sent', 'accepted', 'rejected'].includes(b.status)) head.status = b.status;
   return transaction(async (q) => {
     let qid = id;
     if (id) {
@@ -110,6 +110,7 @@ async function saveQuotation(req, id) {
     } else {
       head.quote_no = b.quote_no || (await nextNumber('quotation', new Date(head.quote_date), q));
       head.created_by = req.user.id;
+      head.status = head.status || 'draft';
       qid = (await q('INSERT INTO quotations SET ?', [head])).insertId;
     }
     for (const it of t.items) await q('INSERT INTO quotation_items SET ?', [{ ...it, quotation_id: qid }]);

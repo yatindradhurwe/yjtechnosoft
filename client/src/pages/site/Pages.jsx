@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowRight, Check, MapPin, Phone, Mail, Clock, Briefcase, Calendar, IndianRupee, Users, Target, Eye, Send, Upload, ExternalLink, Search } from 'lucide-react';
+import { ArrowRight, ArrowUpRight, Check, MapPin, Phone, Mail, Clock, Briefcase, Calendar, IndianRupee, Users, Target, Eye, Send, Upload, ExternalLink, Search } from 'lucide-react';
 import useFetch from '../../lib/useFetch';
 import api, { errMsg } from '../../lib/api';
 import { useSite } from '../../context/SiteContext';
@@ -9,7 +9,7 @@ import { asset, cn, fmtDate, lines } from '../../lib/utils';
 import { Icon, PageLoader, Spinner } from '../../components/ui';
 import { Seo } from '../../components/site/Layout';
 import SocialIcon from '../../components/site/SocialIcons';
-import { PageHero, Reveal, SectionHeading, ServiceCard, PortfolioCard, BlogCard, TestimonialCard, Counter, CtaBand, EnquiryForm, Faq } from '../../components/site/Blocks';
+import { PageHero, Reveal, SectionHeading, ServiceCard, PortfolioCard, ProductCard, StageBadge, BlogCard, TestimonialCard, Counter, CtaBand, EnquiryForm, Faq } from '../../components/site/Blocks';
 
 /* ====================================================================== About */
 export function About() {
@@ -290,6 +290,81 @@ export function PortfolioDetail() {
                 <PortfolioCard key={r.id} p={r} i={i} />
               ))}
             </div>
+          </div>
+        )}
+      </section>
+    </>
+  );
+}
+
+/* ====================================================================== Products */
+export function Products() {
+  const { data, loading } = useFetch('/public/products');
+  return (
+    <>
+      <Seo title="Our Products" description="Software products built and run by our team." />
+      <PageHero title="Our Products" text="Ready-to-use software built and supported by our own team." crumbs={[{ label: 'Products' }]} />
+      <section className="section">
+        <div className="container-x">
+          {loading ? (
+            <PageLoader />
+          ) : data?.length ? (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {data.map((p, i) => <ProductCard key={p.id} p={p} i={i} />)}
+            </div>
+          ) : (
+            <p className="text-center text-slate-500">Our products will be listed here soon.</p>
+          )}
+        </div>
+      </section>
+      <CtaBand />
+    </>
+  );
+}
+
+export function ProductDetail() {
+  const { slug } = useParams();
+  const { data: p, loading, error } = useFetch(`/public/products/${slug}`);
+  if (loading) return <PageLoader />;
+  if (error || !p) return <NotFound />;
+  const features = lines(p.features);
+  return (
+    <>
+      <Seo title={p.name} description={p.short_description} image={p.image} />
+      <PageHero title={p.name} text={p.tagline || p.short_description} crumbs={[{ label: 'Products', to: '/products' }, { label: p.name }]} />
+      <section className="section">
+        <div className="container-x grid gap-10 lg:grid-cols-3 lg:gap-12">
+          <div className="min-w-0 lg:col-span-2">
+            {p.image && <img src={asset(p.image)} alt={p.name} className="mb-8 w-full rounded-3xl shadow-soft ring-1 ring-slate-200" />}
+            {p.short_description && <p className="mb-6 text-lg leading-relaxed text-slate-600">{p.short_description}</p>}
+            <div className="rich" dangerouslySetInnerHTML={{ __html: p.description || '' }} />
+          </div>
+          <aside className="h-fit rounded-3xl bg-slate-50 p-6 sm:p-7 lg:sticky lg:top-28">
+            <div className="flex items-center gap-3">
+              {p.logo && <img src={asset(p.logo)} alt="" className="h-12 w-12 rounded-2xl object-contain" />}
+              <div><h3 className="text-lg font-semibold">{p.name}</h3><StageBadge stage={p.stage} /></div>
+            </div>
+            {features.length > 0 && (
+              <ul className="mt-6 space-y-2.5">
+                {features.map((f) => <li key={f} className="flex items-start gap-2 text-sm text-slate-700"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> {f}</li>)}
+              </ul>
+            )}
+            {p.audience && (
+              <div className="mt-6">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Built for</p>
+                <p className="mt-1 text-sm font-medium text-navy-900">{p.audience}</p>
+              </div>
+            )}
+            <div className="mt-6 space-y-2">
+              {p.website_url && <a href={p.website_url} target="_blank" rel="noreferrer" className="btn-primary w-full">{p.cta_text || 'Visit website'} <ArrowUpRight className="h-4 w-4" /></a>}
+              <Link to={`/get-quote?product=${encodeURIComponent(p.name)}`} className={cn('w-full', p.website_url ? 'btn-outline' : 'btn-primary')}>Request a demo <ArrowRight className="h-4 w-4" /></Link>
+            </div>
+          </aside>
+        </div>
+        {p.related?.length > 0 && (
+          <div className="container-x mt-20">
+            <h3 className="mb-8 text-2xl font-bold">More products</h3>
+            <div className="grid gap-6 md:grid-cols-3">{p.related.map((r, i) => <ProductCard key={r.id} p={r} i={i} />)}</div>
           </div>
         )}
       </section>
@@ -679,7 +754,7 @@ export function GetQuote() {
             )}
           </div>
           <div className="rounded-3xl bg-white p-5 shadow-soft ring-1 ring-slate-100 sm:p-8 lg:col-span-3">
-            <EnquiryForm source="quote" defaultMessage={params.get('plan') ? `I am interested in the ${params.get('plan')} plan.` : ''} />
+            <EnquiryForm source="quote" defaultMessage={params.get('product') ? `I would like a demo of ${params.get('product')}.` : params.get('plan') ? `I am interested in the ${params.get('plan')} plan.` : ''} />
           </div>
         </div>
       </section>

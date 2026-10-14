@@ -1,13 +1,14 @@
 {
   "name": "yjtechnosoft-server",
   "version": "1.0.0",
-  "description": "YJTechnosoft API – website CMS, billing, HR & notifications",
+  "description": "YJTechnosoft API \u2013 website CMS, billing, HR & notifications",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "db:setup": "node database/seed.js",
-    "db:demo": "node database/seed.js --demo"
+    "db:demo": "node database/seed.js --demo",
+    "import-quotation": "node scripts/importQuotation.js"
   },
   "author": "",
   "license": "UNLICENSED",

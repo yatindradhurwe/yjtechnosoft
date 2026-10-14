@@ -184,6 +184,8 @@ function DocForm({ kind }) {
   };
 
   const client = clients?.data?.find((c) => String(c.id) === String(form.client_id));
+  // new documents and drafts can be saved as draft or finalized; finalized ones keep their status
+  const isDraft = !editing || form.status === 'draft';
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -192,9 +194,9 @@ function DocForm({ kind }) {
         actions={
           <>
             <button className="btn-outline" onClick={() => navigate(-1)}>Cancel</button>
-            {!editing && isInv && <button className="btn-outline" disabled={saving} onClick={() => save('draft')}>Save as draft</button>}
-            <button className="btn-primary" disabled={saving} onClick={() => save(isInv && form.status === 'draft' ? 'unpaid' : undefined)}>
-              {saving && <Spinner className="h-4 w-4 text-white" />} Save {isInv ? 'invoice' : 'quotation'}
+            {isDraft && <button className="btn-outline" disabled={saving} onClick={() => save('draft')}>Save as draft</button>}
+            <button className="btn-primary" disabled={saving} onClick={() => save(isDraft ? (isInv ? 'unpaid' : 'sent') : undefined)}>
+              {saving && <Spinner className="h-4 w-4 text-white" />} {isDraft ? 'Save & finalize' : 'Save changes'}
             </button>
           </>
         }

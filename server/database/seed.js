@@ -279,6 +279,101 @@ const CONTRACT_TEMPLATES = [
   },
 ];
 
+
+/** Our own products shown on the website (images ship in assets/products) */
+const BUILTIN_PRODUCTS = [
+  {
+    name: 'MakeMyProfile',
+    slug: 'makemyprofile',
+    tagline: 'Company & personal profiles, ready as PDF',
+    stage: 'Live',
+    logo: '/uploads/products/makemyprofile-logo.png',
+    image: '/uploads/products/makemyprofile.png',
+    short_description: 'An online platform where firms and professionals create a premium company profile or personal profile from ready templates, edit every section and download a print-ready PDF.',
+    description: `<p><strong>MakeMyProfile</strong> helps businesses, institutions and professionals present themselves the way large companies do – with a well-designed profile document – without hiring a designer.</p>
+<h3>How it works</h3>
+<ol><li><strong>Pick a template</strong> – choose Firm / Business or Individual, then your category: IT, construction, legal, CA, healthcare, education, NGO, government supplier, doctor, advocate, student and more.</li>
+<li><strong>Fill in your details</strong> – edit every section, upload your logo, photos and project screenshots, and choose your colours. Changes are saved automatically.</li>
+<li><strong>Download the PDF</strong> – an A4, print-ready profile with cover page and page numbers, ready for clients, tenders and government offices.</li></ol>
+<h3>Built for</h3>
+<p>Contractors and suppliers preparing tender documents, consultants and agencies making profiles for their clients, firms introducing themselves to new customers, and professionals who need a polished profile or resume.</p>`,
+    features: '30+ templates for firms and individuals\nCategory-wise templates: IT, construction, legal, CA, healthcare, education, NGO, government supplier…\nSection-by-section editor with live preview\nYour logo, photos and brand colours\nPrint-ready A4 PDF download\nShareable public link\nAdmin panel to manage customers, profiles and templates',
+    audience: 'Firms, contractors, consultants, institutions and professionals',
+    website_url: '',
+    cta_text: 'Create your profile',
+    sort_order: 1,
+    is_featured: 1,
+  },
+  {
+    name: 'Litigation & Legal Chamber',
+    slug: 'litigation',
+    tagline: 'Case, hearing and client management for advocates and law firms',
+    stage: 'Live',
+    logo: '/uploads/products/litigation-logo.png',
+    image: '/uploads/products/litigation.png',
+    short_description: 'An online practice-management system for advocates and legal chambers: track litigation, stay on top of hearing dates, keep client records and manage legal documents in one place.',
+    description: `<p><strong>Litigation &amp; Legal Chamber</strong> brings the day-to-day work of a legal practice into one secure online system, so advocates and their teams always know what is due and where every case stands.</p>
+<h3>What it covers</h3>
+<ul><li><strong>Litigation tracking</strong> – keep every case with its court, parties, stage and history.</li>
+<li><strong>Hearing schedules</strong> – see upcoming hearing dates at a glance and plan the week ahead.</li>
+<li><strong>Client records</strong> – client details and their matters, organised and easy to find.</li>
+<li><strong>Legal document management</strong> – store and retrieve the documents for each case.</li></ul>
+<h3>Built for</h3>
+<p>Independent advocates, legal chambers and law firms who want to move from diaries and files to an organised digital practice.</p>`,
+    features: 'Litigation and case tracking\nHearing schedules and upcoming dates\nClient records\nLegal document management\nAccess from any device, online',
+    audience: 'Advocates, legal chambers and law firms',
+    website_url: 'https://litigation.yjtechnosoft.com',
+    cta_text: 'Open Litigation',
+    sort_order: 2,
+    is_featured: 1,
+  },
+  {
+    name: 'GuardOps',
+    slug: 'guardops',
+    tagline: 'Business management for security agencies',
+    stage: 'Live',
+    logo: '/uploads/products/guardops-logo.png',
+    image: '/uploads/products/guardops.png',
+    short_description: 'An online system for security service companies to run their business in one place: guards, client sites, duties and day-to-day operations.',
+    description: `<p><strong>GuardOps</strong> is built for security agencies that manage guards across many client sites. It replaces registers, phone calls and spreadsheets with one organised online system for the office and the field.</p>
+<h3>What it helps you manage</h3>
+<ul><li><strong>Guards</strong> – your security staff and their details in one place.</li>
+<li><strong>Clients and sites</strong> – the clients you serve and the sites you guard.</li>
+<li><strong>Duties</strong> – who is posted where, and when.</li>
+<li><strong>Daily operations</strong> – a clear view of the business from the office.</li></ul>
+<h3>Built for</h3>
+<p>Private security agencies and manpower service companies looking to run their operations more efficiently.</p>`,
+    features: 'Built for security agencies\nGuards, clients and sites in one place\nDuty planning across client sites\nDay-to-day operations from the office\nAccess from any device, online',
+    audience: 'Security agencies and manpower service companies',
+    website_url: 'https://guard-ops.yjtechnosoft.com',
+    cta_text: 'Open GuardOps',
+    sort_order: 3,
+    is_featured: 1,
+  },
+  {
+    name: 'Auto Deploy Panel',
+    slug: 'auto-deploy-panel',
+    tagline: 'Automated deployment for web applications',
+    stage: 'Live',
+    logo: '/uploads/products/autodeploy-logo.png',
+    image: '/uploads/products/autodeploy.png',
+    short_description: 'A deployment panel that automates putting web applications live on your servers, so releases take fewer manual steps and less time.',
+    description: `<p><strong>Auto Deploy Panel</strong> brings application deployment into one web panel. Instead of logging in to servers and repeating the same commands for every release, your team deploys and updates applications from a single place.</p>
+<h3>Why teams use it</h3>
+<ul><li><strong>Fewer manual steps</strong> – deployments follow the same automated process every time.</li>
+<li><strong>Faster releases</strong> – updates go live without hands-on server work.</li>
+<li><strong>One place for all your apps</strong> – see and manage your deployments from one panel.</li></ul>
+<h3>Built for</h3>
+<p>Software teams, agencies and businesses that run their own web applications and want a simpler, more reliable way to release updates.</p>`,
+    features: 'Automated deployment of web applications\nDeploy and update apps from one panel\nFewer manual server steps for every release\nAccess from any device, online',
+    audience: 'Software teams, agencies and businesses running their own web apps',
+    website_url: 'http://automate-deployment.yjtechnosoft.com/',
+    cta_text: 'Open Auto Deploy Panel',
+    sort_order: 4,
+    is_featured: 1,
+  },
+];
+
 /**
  * Creates/upgrades all tables and inserts missing default data. Idempotent –
  * runs automatically every time the server starts, and via `npm run setup`.
@@ -342,6 +437,24 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
     await q('INSERT INTO users SET ?', [{ name: process.env.ADMIN_NAME || 'Administrator', email: adminEmail, role: 'admin', password_hash: await bcrypt.hash(process.env.ADMIN_PASSWORD || 'Admin@123', 10) }]);
     global.console.log(`✔ Admin user created: ${adminEmail} / ${process.env.ADMIN_PASSWORD || 'Admin@123'}`);
   }
+
+  // our own products. Each built-in product is added once (remembered in
+  // settings.seeded_products), so a product deleted in the admin stays deleted.
+  const seeded = new Set(String((await q("SELECT `value` FROM settings WHERE `key` = 'seeded_products'"))[0]?.value || '').split(',').filter(Boolean));
+  const productDir = path.join(__dirname, '..', 'uploads', 'products');
+  for (const prod of BUILTIN_PRODUCTS) {
+    if (seeded.has(prod.slug)) continue;
+    if (!(await q('SELECT id FROM products WHERE slug = ?', [prod.slug])).length) {
+      fs.mkdirSync(productDir, { recursive: true });
+      for (const f of [prod.logo, prod.image].filter(Boolean).map((u) => path.basename(u))) {
+        const src = path.join(__dirname, '..', 'assets', 'products', f);
+        if (fs.existsSync(src) && !fs.existsSync(path.join(productDir, f))) fs.copyFileSync(src, path.join(productDir, f));
+      }
+      await q('INSERT INTO products SET ?', [prod]);
+    }
+    seeded.add(prod.slug);
+  }
+  await q("INSERT INTO settings (`key`, `value`) VALUES ('seeded_products', ?) ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)", [[...seeded].join(',')]);
 
   if (!(await count('sliders'))) {
     await q('INSERT INTO sliders (badge, title, highlight, subtitle, button_text, button_link, button2_text, button2_link, sort_order) VALUES ?', [[

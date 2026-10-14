@@ -19,18 +19,8 @@ export default function DataTable({ columns, rows, loading, empty, onRowClick, f
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 bg-white">
-            {loading ? (
-              <tr>
-                <td colSpan={columns.length} className="py-12 text-center">
-                  <Spinner className="mx-auto h-6 w-6" />
-                </td>
-              </tr>
-            ) : !rows?.length ? (
-              <tr>
-                <td colSpan={columns.length}>{empty || <EmptyState />}</td>
-              </tr>
-            ) : (
-              rows.map((r, i) => (
+            {!loading &&
+              rows?.map((r, i) => (
                 <tr key={r.id ?? i} onClick={onRowClick ? () => onRowClick(r) : undefined} className={cn('transition hover:bg-slate-50/80', onRowClick && 'cursor-pointer')}>
                   {columns.map((c) => (
                     <td key={c.key || c.label} className={c.className}>
@@ -38,11 +28,18 @@ export default function DataTable({ columns, rows, loading, empty, onRowClick, f
                     </td>
                   ))}
                 </tr>
-              ))
-            )}
+              ))}
           </tbody>
         </table>
       </div>
+      {/* outside the scrolling area so they stay centred on narrow screens */}
+      {loading ? (
+        <div className="py-12 text-center">
+          <Spinner className="mx-auto h-6 w-6" />
+        </div>
+      ) : !rows?.length ? (
+        empty || <EmptyState />
+      ) : null}
       {footer}
     </div>
   );

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Image, Briefcase, FileText, MessageSquareQuote, Users, Building2, Cpu, BarChart3, BadgeIndianRupee, HelpCircle, FileStack,
   Inbox, Mail, Receipt, FileSpreadsheet, Wallet, Package, Server, CreditCard, UserCog, CalendarCheck, CalendarOff, PartyPopper, Banknote, Network,
   BadgeCheck, CalendarRange, Megaphone, UserPlus, ClipboardList, FileSignature, FolderKanban, ListTodo, NotebookPen, Settings, Shield, Bell, LogOut,
-  Menu, X, ChevronDown, UserCircle, ExternalLink, Clock, Layers, FolderLock } from 'lucide-react';
+  Menu, X, ChevronDown, UserCircle, ExternalLink, Clock, Layers, FolderLock, Rocket } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSite } from '../context/SiteContext';
 import { asset, cn } from '../lib/utils';
@@ -88,6 +88,7 @@ export const NAV = [
     items: [
       { label: 'Hero Slider', to: '/admin/cms/sliders', icon: Image },
       { label: 'Services', to: '/admin/cms/services', icon: Layers },
+      { label: 'Products', to: '/admin/cms/products', icon: Rocket },
       { label: 'Portfolio', to: '/admin/cms/portfolio', icon: Briefcase },
       { label: 'Blog Posts', to: '/admin/cms/blog_posts', icon: FileText },
       { label: 'Testimonials', to: '/admin/cms/testimonials', icon: MessageSquareQuote },

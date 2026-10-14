@@ -57,6 +57,9 @@ async function createDoc(meta = {}) {
   doc.registerFont('medium', FONT.medium);
   doc.registerFont('semibold', FONT.semibold);
   doc.registerFont('bold', FONT.bold);
+  // The bundled Poppins font has no ₹ glyph – print "Rs." instead of a broken box
+  const drawText = doc.text.bind(doc);
+  doc.text = (text, ...rest) => drawText(typeof text === 'string' ? text.replace(/₹\s?/g, 'Rs. ') : text, ...rest);
 
   const paintBackground = () => {
     doc.save();
@@ -125,16 +128,18 @@ function labelValue(doc, label, value, x, y, { labelWidth = 70, width = 200, siz
 function signatureBlock(doc, s, x = BOX.right - 190, { noBreak = false } = {}) {
   if (!noBreak) ensureSpace(doc, 90);
   const y = doc.y + 10;
-  doc.font('semibold').fontSize(9.5).fillColor(COLOR.text).text(`For ${s.company_name || 'YJTECHNOSOFT PRIVATE LIMITED'}`, x, y, { width: 190, align: 'center' });
+  doc.font('semibold').fontSize(9.5).fillColor(COLOR.text).text(s.company_name || 'YJTECHNOSOFT PRIVATE LIMITED', x, y, { width: 190, align: 'center' });
   const sig = resolveUpload(s.signature_image);
   const stamp = resolveUpload(s.stamp_image);
   if (stamp) doc.image(stamp, x + 105, y + 14, { fit: [70, 52] });
-  if (sig) doc.image(sig, x + 45, y + 18, { fit: [100, 40] });
-  doc.font('medium').fontSize(9).fillColor(COLOR.text).text(s.signatory_name || 'Authorised Signatory', x, y + 62, { width: 190, align: 'center' });
+  if (sig) doc.image(sig, x + 45, y + 16, { fit: [100, 40] });
+  // room for the uploaded signature/stamp, otherwise just enough to sign by hand
+  const sy = y + (stamp ? 66 : sig ? 58 : 34);
+  doc.font('medium').fontSize(9).fillColor(COLOR.text).text(s.signatory_name || 'Authorised Signatory', x, sy, { width: 190, align: 'center' });
   if (s.signatory_designation)
-    doc.font('regular').fontSize(8.5).fillColor(COLOR.muted).text(s.signatory_designation, x, y + 74, { width: 190, align: 'center' });
+    doc.font('regular').fontSize(8.5).fillColor(COLOR.muted).text(s.signatory_designation, x, sy + 12, { width: 190, align: 'center' });
   doc.x = BOX.left;
-  doc.y = y + 90;
+  doc.y = sy + 28;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,12 +148,14 @@ function signatureBlock(doc, s, x = BOX.right - 190, { noBreak = false } = {}) {
 function itemsTable(doc, items) {
   const showHsn = items.some((i) => i.hsn_sac);
   const showTax = items.some((i) => Number(i.tax_rate) > 0);
+  // fixed-price lines (every quantity 1, no unit): Qty and Rate would only repeat the amount, so leave them out
+  const showQty = items.some((i) => Number(i.quantity) !== 1 || (i.unit && i.unit !== 'Nos'));
   const cols = [
     { key: 'sn', label: '#', width: 24, align: 'center' },
     { key: 'description', label: 'Description', width: 0, align: 'left' },
     showHsn && { key: 'hsn_sac', label: 'HSN/SAC', width: 54, align: 'center' },
-    { key: 'quantity', label: 'Qty', width: 38, align: 'center' },
-    { key: 'rate', label: 'Rate', width: 70, align: 'right' },
+    showQty && { key: 'quantity', label: 'Qty', width: 38, align: 'center' },
+    showQty && { key: 'rate', label: 'Rate', width: 70, align: 'right' },
     showTax && { key: 'tax_rate', label: 'GST', width: 38, align: 'center' },
     { key: 'amount', label: 'Amount', width: 80, align: 'right' },
   ].filter(Boolean);
@@ -238,33 +245,10 @@ function totalsBlock(doc, d, { showPaid }) {
   doc.y = Math.max(y, doc.y) + 10;
 }
 
-function paymentDetails(doc, s) {
-  const rows = [
-    ['Account Holder', s.bank_account_holder],
-    ['Bank', s.bank_name],
-    ['Account Number', s.bank_account_number],
-    ['IFSC', s.bank_ifsc],
-    ['Branch', s.bank_branch],
-    ['Account Type', s.bank_account_type],
-    ['Virtual Payment Address', s.upi_id],
-  ].filter((r) => r[1]);
-  ensureSpace(doc, Math.max(rows.length * 14 + 30, 100));
-  const y0 = doc.y;
-  const leftW = WIDTH - 200;
-  if (rows.length) {
-    doc.roundedRect(BOX.left, y0, leftW, 16, 6).fill(COLOR.gray);
-    doc.y = y0 + 2;
-    sectionHeading(doc, 'Payment Details');
-    rows.forEach(([l, v]) => {
-      doc.font('regular').fontSize(9.5).fillColor(COLOR.text).text(`${l}: ${v}`, BOX.left, doc.y, { width: leftW });
-    });
-  }
-  const leftBottom = doc.y;
-  // signature on the right of the payment block
-  doc.y = y0;
+function signatureRow(doc, s) {
+  ensureSpace(doc, 100);
   signatureBlock(doc, s, BOX.right - 190, { noBreak: true });
-  doc.x = BOX.left;
-  doc.y = Math.max(leftBottom, doc.y) + 6;
+  doc.y += 6;
 }
 
 function notesBlock(doc, label, text) {
@@ -313,7 +297,7 @@ async function billingPdf(kind, d) {
   doc.moveDown(0.2);
   itemsTable(doc, d.items);
   totalsBlock(doc, { ...d, gst_split: s.gst_split !== '0' }, { showPaid: isInvoice });
-  paymentDetails(doc, s);
+  signatureRow(doc, s);
   notesBlock(doc, 'Notes', d.notes);
   notesBlock(doc, 'Terms & Conditions', d.terms);
   return toBuffer(doc);
@@ -615,7 +599,7 @@ async function contractPdf(c) {
   const sy = doc.y + 14;
   const sig = resolveUpload(s.signature_image);
   const stamp = resolveUpload(s.stamp_image);
-  doc.font('semibold').fontSize(9.5).text(`For ${s.company_name || 'Service Provider'}`, BOX.left, sy, { width: half });
+  doc.font('semibold').fontSize(9.5).text(s.company_name || 'Service Provider', BOX.left, sy, { width: half });
   if (stamp) doc.image(stamp, BOX.left + 120, sy + 14, { fit: [64, 48] });
   if (sig) doc.image(sig, BOX.left, sy + 18, { fit: [110, 40] });
   doc.moveTo(BOX.left, sy + 66).lineTo(BOX.left + 170, sy + 66).lineWidth(0.6).strokeColor(COLOR.muted).stroke();
@@ -623,7 +607,7 @@ async function contractPdf(c) {
   if (s.signatory_designation) doc.font('regular').fontSize(8.5).fillColor(COLOR.muted).text(s.signatory_designation, BOX.left, doc.y, { width: half });
 
   const rx = BOX.left + half + 12;
-  doc.font('semibold').fontSize(9.5).fillColor(COLOR.text).text(`For ${c.party_name}`, rx, sy, { width: half });
+  doc.font('semibold').fontSize(9.5).fillColor(COLOR.text).text(c.party_name, rx, sy, { width: half });
   if (c.accepted_at) {
     doc.roundedRect(rx, sy + 16, 200, 44, 6).fill('#ecfdf5');
     doc.font('semibold').fontSize(8.5).fillColor('#047857').text('DIGITALLY ACCEPTED ONLINE', rx + 8, sy + 21, { width: 184 });

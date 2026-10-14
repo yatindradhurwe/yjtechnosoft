@@ -2,42 +2,11 @@ import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import toast from 'react-hot-toast';
-import QRCode from 'qrcode';
-import { Download, Phone, Mail, CheckCircle2, FileText, Printer, ShieldCheck, Calendar, IndianRupee, PenLine, AlertTriangle } from 'lucide-react';
+import { Download, Phone, Mail, CheckCircle2, FileText, Printer, ShieldCheck, Calendar, PenLine, AlertTriangle } from 'lucide-react';
 import api, { API_BASE, errMsg } from '../../lib/api';
 import { asset, cn, fmtDate, money, titleCase, waLink } from '../../lib/utils';
 import { PageLoader, Spinner, StatusBadge } from '../../components/ui';
 import SocialIcon from '../../components/site/SocialIcons';
-
-function UpiBox({ company, amount, number }) {
-  const [qr, setQr] = useState('');
-  const upi = `upi://pay?pa=${encodeURIComponent(company.upi_id)}&pn=${encodeURIComponent(company.name || '')}&am=${Number(amount).toFixed(2)}&cu=INR&tn=${encodeURIComponent(number)}`;
-  useEffect(() => {
-    QRCode.toDataURL(upi, { margin: 1, width: 220, color: { dark: '#0b1b33' } }).then(setQr).catch(() => {});
-  }, [upi]);
-  return (
-    <div className="rounded-3xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
-      <h3 className="flex items-center gap-2 font-semibold"><IndianRupee className="h-5 w-5 text-brand-600" /> Pay now</h3>
-      <div className="mt-4 flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-        {qr && <img src={qr} alt="UPI QR" className="h-40 w-40 rounded-2xl ring-1 ring-slate-200" />}
-        <div className="flex-1 space-y-2 text-sm">
-          <p className="text-slate-500">Scan with any UPI app (GPay, PhonePe, Paytm, BHIM)</p>
-          <p><span className="text-slate-400">UPI ID:</span> <b>{company.upi_id}</b></p>
-          <p><span className="text-slate-400">Amount:</span> <b>{money(amount)}</b></p>
-          <a href={upi} className="btn-accent mt-2 w-full sm:hidden">Pay with UPI app</a>
-        </div>
-      </div>
-      {company.bank_account_number && (
-        <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm">
-          <p className="mb-1 font-semibold text-navy-900">Bank transfer</p>
-          {[['Account name', company.bank_account_holder], ['Bank', company.bank_name], ['Account no.', company.bank_account_number], ['IFSC', company.bank_ifsc], ['Branch', company.bank_branch]]
-            .filter((x) => x[1])
-            .map(([k, v]) => <p key={k}><span className="text-slate-400">{k}:</span> <span className="font-medium">{v}</span></p>)}
-        </div>
-      )}
-    </div>
-  );
-}
 
 function AcceptBox({ d, onAccepted, params }) {
   const [name, setName] = useState('');
@@ -186,7 +155,6 @@ export default function SharePage() {
             </div>
           )}
           {d.can_accept && !accepted && <AcceptBox d={d} params={params} onAccepted={load} />}
-          {d.type === 'invoice' && d.payable && d.balance > 0 && c.upi_id && <UpiBox company={c} amount={d.balance} number={d.number} />}
           <div className="rounded-3xl bg-white p-6 shadow-soft ring-1 ring-slate-100">
             <h3 className="font-semibold">Questions? Contact us</h3>
             <div className="mt-4 space-y-2">

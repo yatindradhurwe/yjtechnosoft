@@ -15,6 +15,7 @@ const NAV = [
   { to: '/', label: 'Home' },
   { to: '/about', label: 'About' },
   { to: '/services', label: 'Services', mega: true },
+  { to: '/products', label: 'Products' },
   { to: '/portfolio', label: 'Portfolio' },
   { to: '/careers', label: 'Careers' },
   { to: '/blog', label: 'Blog' },
@@ -100,17 +101,17 @@ function Header() {
         </div>
       </div>
       <header className={cn('sticky top-0 z-50 transition-all duration-300', scrolled ? 'bg-white/90 shadow-soft backdrop-blur-xl' : 'bg-white')}>
-        <div className="container-x flex h-[76px] items-center justify-between gap-6">
+        <div className="container-x flex h-[76px] items-center justify-between gap-3 xl:gap-6">
           <Link to="/" className="shrink-0">
             <Logo />
           </Link>
-          <nav className="hidden items-center gap-1 lg:flex">
+          <nav className="hidden items-center gap-0.5 lg:flex xl:gap-1">
             {NAV.map((n) =>
               n.mega ? (
                 <div key={n.to} className="relative" onMouseEnter={() => setMega(true)} onMouseLeave={() => setMega(false)}>
                   <NavLink
                     to={n.to}
-                    className={({ isActive }) => cn('flex items-center gap-1 rounded-lg px-3.5 py-2 text-[15px] font-medium transition', isActive ? 'text-brand-700' : 'text-slate-700 hover:text-brand-700')}
+                    className={({ isActive }) => cn('flex items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-2 text-[14px] font-medium transition xl:px-3.5 xl:text-[15px]', isActive ? 'text-brand-700' : 'text-slate-700 hover:text-brand-700')}
                   >
                     {n.label} <ChevronDown className={cn('h-4 w-4 transition', mega && 'rotate-180')} />
                   </NavLink>
@@ -142,16 +143,16 @@ function Header() {
                   key={n.to}
                   to={n.to}
                   end={n.to === '/'}
-                  className={({ isActive }) => cn('rounded-lg px-3.5 py-2 text-[15px] font-medium transition', isActive ? 'text-brand-700' : 'text-slate-700 hover:text-brand-700')}
+                  className={({ isActive }) => cn('whitespace-nowrap rounded-lg px-2.5 py-2 text-[14px] font-medium transition xl:px-3.5 xl:text-[15px]', isActive ? 'text-brand-700' : 'text-slate-700 hover:text-brand-700')}
                 >
                   {n.label}
                 </NavLink>
               )
             )}
           </nav>
-          <div className="flex items-center gap-2">
-            <Link to="/get-quote" className="btn-primary hidden sm:inline-flex">
-              Get a Quote <ArrowRight className="h-4 w-4" />
+          <div className="flex shrink-0 items-center gap-2">
+            <Link to="/get-quote" className="btn-primary hidden whitespace-nowrap sm:inline-flex lg:px-4 xl:px-5">
+              Get a Quote <ArrowRight className="h-4 w-4 lg:hidden xl:block" />
             </Link>
             <button className="rounded-lg p-2 text-navy-900 lg:hidden" onClick={() => setOpen(true)} aria-label="Menu">
               <Menu className="h-6 w-6" />
@@ -263,7 +264,7 @@ function Footer() {
           <div className="lg:col-span-2">
             <h4 className="mb-4 font-semibold text-white">Company</h4>
             <ul className="space-y-2.5 text-sm">
-              {[['About Us', '/about'], ['Portfolio', '/portfolio'], ['Careers', '/careers'], ['Blog', '/blog'], ['Contact', '/contact'], ['Get a Quote', '/get-quote']].map(([l, to]) => (
+              {[['About Us', '/about'], ['Our Products', '/products'], ['Portfolio', '/portfolio'], ['Careers', '/careers'], ['Blog', '/blog'], ['Contact', '/contact'], ['Get a Quote', '/get-quote']].map(([l, to]) => (
                 <li key={to}>
                   <Link to={to} className="transition hover:text-accent-400">{l}</Link>
                 </li>
@@ -312,11 +313,11 @@ function Footer() {
           </div>
         </div>
         <div className="border-t border-white/10">
-          <div className="container-x flex flex-col items-center justify-between gap-3 pb-28 pt-6 text-center text-xs lg:flex-row lg:pb-6 lg:text-left">
+          <div className="container-x flex flex-col items-center justify-between gap-3 pb-36 pt-6 text-center text-xs lg:flex-row lg:pb-6 lg:text-left">
             <p>
               © {new Date().getFullYear()} {s.company_name}. All rights reserved. {s.cin && <span className="ml-1 text-white/50">CIN: {s.cin}</span>}
             </p>
-            <div className="flex flex-wrap justify-center gap-4">
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-2">
               {pages.map((p) => (
                 <Link key={p.slug} to={`/page/${p.slug}`} className="hover:text-white">{p.title}</Link>
               ))}
@@ -337,9 +338,9 @@ function FloatingActions() {
     return () => window.removeEventListener('scroll', f);
   }, []);
   return (
-    <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3">
+    <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-2.5 sm:bottom-5 sm:right-5 sm:gap-3">
       {top && (
-        <button onClick={() => window.scrollTo({ top: 0 })} className="hidden rounded-full bg-navy-900 p-3 text-white shadow-lg transition hover:bg-brand-600 sm:block" aria-label="Back to top">
+        <button onClick={() => window.scrollTo({ top: 0 })} className="rounded-full bg-navy-900 p-2.5 text-white shadow-lg ring-1 ring-white/30 transition hover:bg-brand-600 sm:p-3" aria-label="Back to top">
           <ArrowUp className="h-5 w-5" />
         </button>
       )}
@@ -348,11 +349,11 @@ function FloatingActions() {
           href={waLink(s.whatsapp_number || s.phone, `Hello ${s.site_name || ''}, I would like to know more about your services.`)}
           target="_blank"
           rel="noreferrer"
-          className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-[#25D366] text-white shadow-xl shadow-green-600/30 transition hover:scale-105"
+          className="group relative flex h-12 w-12 items-center justify-center rounded-full bg-[#25D366] sm:h-14 sm:w-14 text-white shadow-xl shadow-green-600/30 transition hover:scale-105"
           aria-label="Chat on WhatsApp"
         >
           <span className="absolute inset-0 animate-ping rounded-full bg-[#25D366]/40" />
-          <SocialIcon name="whatsapp" className="relative h-7 w-7" />
+          <SocialIcon name="whatsapp" className="relative h-6 w-6 sm:h-7 sm:w-7" />
         </a>
       )}
     </div>

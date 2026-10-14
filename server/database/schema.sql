@@ -107,6 +107,26 @@ CREATE TABLE IF NOT EXISTS portfolio (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS products (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  slug VARCHAR(170) NOT NULL UNIQUE,
+  tagline VARCHAR(255),
+  stage VARCHAR(40) DEFAULT 'Live',
+  logo VARCHAR(255),
+  image VARCHAR(255),
+  short_description VARCHAR(500),
+  description MEDIUMTEXT,
+  features TEXT,
+  audience VARCHAR(255),
+  website_url VARCHAR(255),
+  cta_text VARCHAR(60),
+  sort_order INT DEFAULT 0,
+  is_featured TINYINT(1) DEFAULT 1,
+  status ENUM('active','inactive') DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS testimonials (
   id INT AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,

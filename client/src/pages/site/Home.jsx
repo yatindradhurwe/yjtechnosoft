@@ -8,7 +8,7 @@ import { asset, cn } from '../../lib/utils';
 import { Icon, PageLoader } from '../../components/ui';
 import { Seo } from '../../components/site/Layout';
 import {
-  Reveal, SectionHeading, Counter, ServiceCard, PortfolioCard, BlogCard, TestimonialCard, Faq, PricingCard, CtaBand,
+  Reveal, SectionHeading, Counter, ServiceCard, PortfolioCard, ProductShowcase, BlogCard, TestimonialCard, Faq, PricingCard, CtaBand,
 } from '../../components/site/Blocks';
 
 function Hero({ sliders, stats }) {
@@ -186,7 +186,7 @@ export default function Home() {
       </section>
     );
   if (loading || !data) return <PageLoader />;
-  const { sliders, services, portfolio, testimonials, partners, technologies, stats, pricing, faqs, blog } = data;
+  const { sliders, services, portfolio, testimonials, partners, technologies, stats, pricing, faqs, blog, products = [] } = data;
 
   return (
     <>
@@ -288,6 +288,22 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {products.length > 0 && (
+        <section className="section bg-slate-50">
+          <div className="container-x">
+            <div className="mb-12 flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
+              <SectionHeading center={false} className="!mb-0" eyebrow="Our products" title="Software we" highlight="build & run" text="Ready-to-use products made and supported by our own team." />
+              <Link to="/products" className="btn-outline shrink-0">
+                All products <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+            <div className="space-y-16">
+              {products.slice(0, 4).map((p, i) => <ProductShowcase key={p.id} p={p} flip={i % 2 === 1} />)}
+            </div>
+          </div>
+        </section>
+      )}
 
       {portfolio.length > 0 && (
         <section className="section">

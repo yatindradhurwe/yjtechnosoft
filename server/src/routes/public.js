@@ -30,7 +30,7 @@ router.get(
 router.get(
   '/home',
   asyncHandler(async (req, res) => {
-    const [sliders, services, portfolio, testimonials, partners, technologies, stats, pricing, faqs, blog, team] = await Promise.all([
+    const [sliders, services, portfolio, testimonials, partners, technologies, stats, pricing, faqs, blog, team, products] = await Promise.all([
       query(`SELECT * FROM sliders WHERE ${active} ORDER BY sort_order, id`),
       query(`SELECT id, title, slug, icon, short_description, image, starting_price FROM services WHERE ${active} AND is_featured = 1 ORDER BY sort_order, id LIMIT 9`),
       query(`SELECT id, title, slug, category, image, short_description, technologies FROM portfolio WHERE ${active} AND is_featured = 1 ORDER BY sort_order, id DESC LIMIT 6`),
@@ -42,8 +42,9 @@ router.get(
       query(`SELECT * FROM faqs WHERE ${active} ORDER BY sort_order, id LIMIT 8`),
       query("SELECT id, title, slug, excerpt, image, category, author, published_at FROM blog_posts WHERE status = 'published' ORDER BY published_at DESC, id DESC LIMIT 3"),
       query(`SELECT * FROM team_members WHERE ${active} ORDER BY sort_order, id LIMIT 8`),
+      query(`SELECT id, name, slug, tagline, stage, logo, image, short_description, features, website_url, cta_text FROM products WHERE ${active} AND is_featured = 1 ORDER BY sort_order, id LIMIT 6`),
     ]);
-    res.json({ sliders, services, portfolio, testimonials, partners, technologies, stats, pricing, faqs, blog, team });
+    res.json({ sliders, services, portfolio, testimonials, partners, technologies, stats, pricing, faqs, blog, team, products });
   })
 );
 
@@ -71,6 +72,14 @@ router.get('/portfolio/:slug', asyncHandler(async (req, res) => {
   const p = await one(`SELECT * FROM portfolio WHERE slug = ? AND ${active}`, [req.params.slug]);
   if (!p) throw new HttpError(404, 'Project not found');
   p.related = await query(`SELECT id, title, slug, image, category FROM portfolio WHERE ${active} AND id <> ? ORDER BY sort_order LIMIT 3`, [p.id]);
+  res.json(p);
+}));
+
+router.get('/products', asyncHandler(async (req, res) => res.json(await query(`SELECT * FROM products WHERE ${active} ORDER BY sort_order, id DESC`))));
+router.get('/products/:slug', asyncHandler(async (req, res) => {
+  const p = await one(`SELECT * FROM products WHERE slug = ? AND ${active}`, [req.params.slug]);
+  if (!p) throw new HttpError(404, 'Product not found');
+  p.related = await query(`SELECT id, name, slug, tagline, stage, logo, image FROM products WHERE ${active} AND id <> ? ORDER BY sort_order LIMIT 3`, [p.id]);
   res.json(p);
 }));
 
@@ -266,8 +275,6 @@ router.get(
       pdf_url: `/api/public/documents/${type}/${id}/${token}`,
       company: {
         name: s.company_name, logo: s.logo, phone: s.phone, email: s.email, whatsapp: s.whatsapp_number, address: s.address, site_url: s.site_url,
-        // payment details only on invoices
-        ...(type === 'invoice' ? { upi_id: s.upi_id, bank_account_holder: s.bank_account_holder, bank_name: s.bank_name, bank_account_number: s.bank_account_number, bank_ifsc: s.bank_ifsc, bank_branch: s.bank_branch } : {}),
       },
     });
   })
