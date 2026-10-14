@@ -24,9 +24,9 @@ export function Reveal({ children, delay = 0, className, y = 28 }) {
 
 export function SectionHeading({ eyebrow, title, highlight, text, center = true, light = false, className }) {
   return (
-    <Reveal className={cn('mb-12 max-w-3xl', center && 'mx-auto text-center', className)}>
+    <Reveal className={cn('mb-10 max-w-3xl sm:mb-12', center && 'mx-auto text-center', className)}>
       {eyebrow && <span className={cn('eyebrow', light && 'bg-white/10 text-accent-400')}>{eyebrow}</span>}
-      <h2 className={cn('mt-4 text-3xl font-bold leading-tight sm:text-4xl lg:text-[44px]', light && 'text-white')}>
+      <h2 className={cn('mt-4 text-[28px] font-bold leading-tight sm:text-4xl lg:text-[44px]', light && 'text-white')}>
         {title} {highlight && <span className="text-gradient">{highlight}</span>}
       </h2>
       {text && <p className={cn('mt-4 text-base leading-relaxed sm:text-lg', light ? 'text-white/70' : 'text-slate-500')}>{text}</p>}
@@ -36,7 +36,7 @@ export function SectionHeading({ eyebrow, title, highlight, text, center = true,
 
 export function PageHero({ title, text, crumbs = [], image }) {
   return (
-    <section className="relative overflow-hidden bg-navy-900 pb-20 pt-16 lg:pb-24 lg:pt-20">
+    <section className="relative overflow-hidden bg-navy-900 pb-16 pt-12 sm:pb-20 sm:pt-16 lg:pb-24 lg:pt-20">
       <div className="grid-bg absolute inset-0" />
       {image && <img src={asset(image)} alt="" className="absolute inset-0 h-full w-full object-cover opacity-15" />}
       <div className="absolute -left-24 top-0 h-72 w-72 rounded-full bg-brand-600/40 blur-3xl" />
@@ -57,11 +57,11 @@ export function PageHero({ title, text, crumbs = [], image }) {
             </span>
           ))}
         </nav>
-        <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl text-4xl font-bold text-white sm:text-5xl">
+        <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl break-words text-3xl font-bold leading-tight text-white sm:text-4xl lg:text-5xl">
           {title}
         </motion.h1>
         {text && (
-          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mt-4 max-w-2xl text-lg text-white/70">
+          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="mt-4 max-w-2xl text-base text-white/70 sm:text-lg">
             {text}
           </motion.p>
         )}
@@ -253,13 +253,13 @@ export function PricingCard({ p }) {
 export function CtaBand() {
   const { settings: s } = useSite();
   return (
-    <section className="container-x py-20">
+    <section className="container-x py-14 sm:py-20">
       <Reveal>
-        <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-brand-600 via-brand-700 to-navy-900 px-8 py-14 text-center sm:px-16 lg:py-20">
+        <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-brand-600 via-brand-700 to-navy-900 px-5 py-12 text-center sm:px-16 sm:py-14 lg:py-20">
           <div className="grid-bg absolute inset-0 opacity-40" />
           <div className="absolute -right-16 -top-16 h-64 w-64 rounded-full bg-accent-500/30 blur-3xl" />
           <div className="relative mx-auto max-w-3xl">
-            <h2 className="text-3xl font-bold text-white sm:text-4xl lg:text-5xl">{s.cta_title || 'Ready to start your project?'}</h2>
+            <h2 className="text-2xl font-bold text-white sm:text-4xl lg:text-5xl">{s.cta_title || 'Ready to start your project?'}</h2>
             <p className="mt-4 text-lg text-white/75">{s.cta_text}</p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <Link to="/get-quote" className="btn-accent !px-7 !py-3.5 text-base">

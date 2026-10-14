@@ -253,11 +253,11 @@ export default function Home() {
             </Link>
           </Reveal>
           <Reveal delay={0.15}>
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-2 gap-3 sm:gap-5">
               {stats.map((st, i) => (
-                <div key={st.id} className={cn('rounded-3xl p-8 shadow-sm', i % 3 === 0 ? 'bg-navy-900 text-white' : 'bg-white ring-1 ring-slate-200', i === 1 && 'translate-y-8', i === 3 && 'translate-y-8')}>
+                <div key={st.id} className={cn('rounded-3xl p-5 shadow-sm sm:p-8', i % 3 === 0 ? 'bg-navy-900 text-white' : 'bg-white ring-1 ring-slate-200', (i === 1 || i === 3) && 'lg:translate-y-8')}>
                   <Icon name={st.icon} className={cn('h-8 w-8', i % 3 === 0 ? 'text-accent-400' : 'text-brand-600')} />
-                  <p className={cn('mt-5 font-display text-4xl font-bold', i % 3 === 0 ? 'text-white' : 'text-navy-900')}>
+                  <p className={cn('mt-4 font-display text-3xl font-bold sm:mt-5 sm:text-4xl', i % 3 === 0 ? 'text-white' : 'text-navy-900')}>
                     <Counter value={st.value} suffix={st.suffix} />
                   </p>
                   <p className={cn('mt-1 text-sm', i % 3 === 0 ? 'text-white/70' : 'text-slate-500')}>{st.label}</p>
@@ -298,7 +298,7 @@ export default function Home() {
                 View portfolio <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {portfolio.map((p, i) => (
                 <PortfolioCard key={p.id} p={p} i={i} />
               ))}

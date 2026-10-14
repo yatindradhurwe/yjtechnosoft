@@ -254,8 +254,8 @@ function Footer() {
             <Newsletter />
           </div>
         </div>
-        <div className="container-x grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-12">
-          <div className="lg:col-span-4">
+        <div className="container-x grid grid-cols-2 gap-x-6 gap-y-10 py-12 sm:py-14 lg:grid-cols-12">
+          <div className="col-span-2 lg:col-span-4">
             <Logo light className="h-12" />
             <p className="mt-5 text-sm leading-relaxed">{s.footer_about}</p>
             <Socials className="mt-6" />
@@ -280,7 +280,7 @@ function Footer() {
               ))}
             </ul>
           </div>
-          <div className="lg:col-span-3">
+          <div className="col-span-2 sm:col-span-1 lg:col-span-3">
             <h4 className="mb-4 font-semibold text-white">Get in touch</h4>
             <ul className="space-y-3.5 text-sm">
               {s.address && (
@@ -312,11 +312,11 @@ function Footer() {
           </div>
         </div>
         <div className="border-t border-white/10">
-          <div className="container-x flex flex-col items-center justify-between gap-3 py-6 text-xs sm:flex-row">
+          <div className="container-x flex flex-col items-center justify-between gap-3 pb-28 pt-6 text-center text-xs lg:flex-row lg:pb-6 lg:text-left">
             <p>
               © {new Date().getFullYear()} {s.company_name}. All rights reserved. {s.cin && <span className="ml-1 text-white/50">CIN: {s.cin}</span>}
             </p>
-            <div className="flex flex-wrap gap-4">
+            <div className="flex flex-wrap justify-center gap-4">
               {pages.map((p) => (
                 <Link key={p.slug} to={`/page/${p.slug}`} className="hover:text-white">{p.title}</Link>
               ))}
@@ -339,7 +339,7 @@ function FloatingActions() {
   return (
     <div className="fixed bottom-5 right-5 z-40 flex flex-col items-end gap-3">
       {top && (
-        <button onClick={() => window.scrollTo({ top: 0 })} className="rounded-full bg-navy-900 p-3 text-white shadow-lg transition hover:bg-brand-600" aria-label="Back to top">
+        <button onClick={() => window.scrollTo({ top: 0 })} className="hidden rounded-full bg-navy-900 p-3 text-white shadow-lg transition hover:bg-brand-600 sm:block" aria-label="Back to top">
           <ArrowUp className="h-5 w-5" />
         </button>
       )}

@@ -25,13 +25,13 @@ export function About() {
             {s.about_image ? (
               <img src={asset(s.about_image)} alt="" className="w-full rounded-3xl shadow-soft" />
             ) : (
-              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-navy-900 to-brand-700 p-12">
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-navy-900 to-brand-700 p-5 sm:p-10 lg:p-12">
                 <div className="grid-bg absolute inset-0" />
-                <img src={asset(s.logo || '/logo.png')} alt="" className="relative mx-auto w-3/4 rounded-2xl bg-white p-6 shadow-2xl" />
-                <div className="relative mt-10 grid grid-cols-2 gap-4">
+                <img src={asset(s.logo || '/logo.png')} alt="" className="relative mx-auto w-full max-w-[280px] rounded-2xl bg-white p-4 shadow-2xl sm:p-6" />
+                <div className="relative mt-6 grid grid-cols-2 gap-3 sm:mt-10 sm:gap-4">
                   {(data?.stats || []).slice(0, 4).map((st) => (
-                    <div key={st.id} className="rounded-2xl bg-white/10 p-5 text-white backdrop-blur">
-                      <p className="font-display text-3xl font-bold">
+                    <div key={st.id} className="rounded-2xl bg-white/10 p-4 text-white backdrop-blur sm:p-5">
+                      <p className="font-display text-2xl font-bold sm:text-3xl">
                         <Counter value={st.value} suffix={st.suffix} />
                       </p>
                       <p className="text-sm text-white/70">{st.label}</p>
@@ -70,20 +70,20 @@ export function About() {
         <section className="section bg-slate-50">
           <div className="container-x">
             <SectionHeading eyebrow="Our team" title="Meet the people behind" highlight="our success" />
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-4">
               {data.team.map((m, i) => (
                 <Reveal key={m.id} delay={(i % 4) * 0.06}>
                   <div className="group overflow-hidden rounded-3xl bg-white text-center shadow-sm ring-1 ring-slate-200/70">
-                    <div className="aspect-square overflow-hidden bg-gradient-to-br from-brand-100 to-brand-50">
+                    <div className="aspect-[4/5] overflow-hidden bg-gradient-to-br from-brand-100 to-brand-50 sm:aspect-square">
                       {m.photo ? (
                         <img src={asset(m.photo)} alt={m.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                       ) : (
                         <div className="flex h-full items-center justify-center font-display text-6xl font-bold text-brand-300">{m.name[0]}</div>
                       )}
                     </div>
-                    <div className="p-5">
-                      <h4 className="font-semibold">{m.name}</h4>
-                      <p className="text-sm text-brand-600">{m.designation}</p>
+                    <div className="p-3 sm:p-5">
+                      <h4 className="text-sm font-semibold sm:text-base">{m.name}</h4>
+                      <p className="text-xs text-brand-600 sm:text-sm">{m.designation}</p>
                       {m.linkedin && (
                         <a href={m.linkedin} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-lg bg-slate-100 p-2 text-slate-600 hover:bg-brand-600 hover:text-white">
                           <SocialIcon name="linkedin" />
@@ -101,7 +101,7 @@ export function About() {
         <section className="section">
           <div className="container-x">
             <SectionHeading eyebrow="Testimonials" title="Loved by" highlight="our clients" />
-            <div className="grid gap-6 md:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {data.testimonials.slice(0, 3).map((t) => (
                 <TestimonialCard key={t.id} t={t} />
               ))}
@@ -233,7 +233,7 @@ export function Portfolio() {
           {loading ? (
             <PageLoader />
           ) : list.length ? (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 sm:grid-cols-2 md:grid-cols-3">
               {list.map((p, i) => (
                 <PortfolioCard key={p.id} p={p} i={i} />
               ))}
@@ -636,13 +636,13 @@ export function Contact() {
             ))}
           </div>
           <div className="mt-14 grid gap-10 lg:grid-cols-2">
-            <div className="rounded-3xl bg-white p-8 shadow-soft ring-1 ring-slate-100">
+            <div className="rounded-3xl bg-white p-5 shadow-soft ring-1 ring-slate-100 sm:p-8">
               <h2 className="text-2xl font-bold">Send us a message</h2>
               <p className="mb-6 mt-1 text-slate-500">Fill the form and our team will get back within 24 hours.</p>
               <EnquiryForm />
             </div>
-            <div className="min-h-[420px] overflow-hidden rounded-3xl bg-slate-100">
-              {s.map_embed && <iframe title="map" src={s.map_embed} className="h-full min-h-[420px] w-full border-0" loading="lazy" allowFullScreen />}
+            <div className="min-h-[300px] overflow-hidden rounded-3xl bg-slate-100 sm:min-h-[420px]">
+              {s.map_embed && <iframe title="map" src={s.map_embed} className="h-full min-h-[300px] w-full border-0 sm:min-h-[420px]" loading="lazy" allowFullScreen />}
             </div>
           </div>
         </div>
@@ -678,7 +678,7 @@ export function GetQuote() {
               </div>
             )}
           </div>
-          <div className="rounded-3xl bg-white p-8 shadow-soft ring-1 ring-slate-100 lg:col-span-3">
+          <div className="rounded-3xl bg-white p-5 shadow-soft ring-1 ring-slate-100 sm:p-8 lg:col-span-3">
             <EnquiryForm source="quote" defaultMessage={params.get('plan') ? `I am interested in the ${params.get('plan')} plan.` : ''} />
           </div>
         </div>
