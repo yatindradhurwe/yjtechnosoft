@@ -1,0 +1,47 @@
+{
+  "$schema": "../schemas/template.schema.json",
+  "schemaVersion": 1,
+  "kind": "frame",
+  "id": "footer-wave",
+  "version": 1,
+  "name": "Wave footer with centred contacts",
+  "canvas": { "width": 1080, "height": 220 },
+  "meta": { "slot": "footer", "tags": ["festive", "modern"] },
+  "layers": [
+    {
+      "id": "wave",
+      "type": "shape",
+      "shape": "path",
+      "viewBox": [0, 0, 1080, 220],
+      "path": "M0 60 C 270 0, 540 110, 1080 30 L 1080 220 L 0 220 Z",
+      "box": { "x": 0, "y": 0, "w": 1080, "h": 220 },
+      "fill": "{{ brand.colors.primary || '#7c2d12' }}"
+    },
+    {
+      "id": "name",
+      "type": "text",
+      "text": "{{ business.name }}",
+      "box": { "x": 60, "y": 72, "w": 960, "h": 56 },
+      "maxLines": 1,
+      "style": { "fontFamily": "Noto Sans", "fontWeight": 800, "fontSize": 44, "color": "#ffffff", "align": "center", "textTransform": "uppercase", "letterSpacing": 2 }
+    },
+    {
+      "id": "phone",
+      "type": "badge",
+      "icon": "whatsapp",
+      "text": "{{ business.whatsapp || business.phone }}",
+      "box": { "x": 60, "y": 144, "w": 470, "h": 54 },
+      "align": "right",
+      "style": { "background": "#ffffff", "color": "#14532d", "iconColor": "#16a34a", "fontFamily": "Noto Sans", "fontWeight": 700, "fontSize": 26 }
+    },
+    {
+      "id": "address",
+      "type": "badge",
+      "icon": "location",
+      "text": "{{ business.city || business.address }}",
+      "box": { "x": 550, "y": 144, "w": 470, "h": 54 },
+      "align": "left",
+      "style": { "background": "#00000033", "color": "#ffffff", "fontFamily": "Noto Sans", "fontWeight": 600, "fontSize": 24 }
+    }
+  ]
+}

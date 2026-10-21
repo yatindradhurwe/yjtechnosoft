@@ -1,0 +1,70 @@
+{
+  "$schema": "../schemas/template.schema.json",
+  "schemaVersion": 1,
+  "kind": "frame",
+  "id": "footer-classic",
+  "version": 1,
+  "name": "Classic footer: logo, name and contact pills",
+  "canvas": { "width": 1080, "height": 220 },
+  "meta": { "slot": "footer", "tags": ["minimal", "corporate"] },
+  "layers": [
+    {
+      "id": "bar",
+      "type": "shape",
+      "shape": "rect",
+      "box": { "x": 0, "y": 20, "w": 1080, "h": 200 },
+      "fill": {
+        "type": "linear",
+        "angle": 0,
+        "stops": [
+          { "offset": 0, "color": "{{ brand.colors.primary || '#1e3a8a' }}" },
+          { "offset": 1, "color": "{{ brand.colors.secondary || '#0f172a' }}" }
+        ]
+      }
+    },
+    { "id": "accent", "type": "shape", "shape": "rect", "box": { "x": 0, "y": 20, "w": 1080, "h": 6 }, "fill": "{{ brand.colors.accent || '#f59e0b' }}" },
+    {
+      "id": "logo",
+      "type": "logo",
+      "src": "{{ brand.logo.primary }}",
+      "box": { "x": 32, "y": 0, "w": 190, "h": 190 },
+      "plate": { "fill": "#ffffff", "radius": 28, "padding": 18 },
+      "align": "center",
+      "editable": ["src", "box", "hidden"]
+    },
+    {
+      "id": "name",
+      "type": "text",
+      "text": "{{ business.name }}",
+      "box": { "x": 250, "y": 34, "w": 800, "h": 60 },
+      "maxLines": 1,
+      "style": { "fontFamily": "Noto Sans", "fontWeight": 700, "fontSize": 46, "color": "#ffffff", "verticalAlign": "middle" },
+      "editable": ["text", "style"]
+    },
+    {
+      "id": "tagline",
+      "type": "text",
+      "text": "{{ business.tagline || business.address }}",
+      "box": { "x": 250, "y": 94, "w": 800, "h": 36 },
+      "maxLines": 1,
+      "style": { "fontFamily": "Noto Sans", "fontSize": 26, "color": "#e2e8f0" },
+      "editable": ["text", "hidden"]
+    },
+    {
+      "id": "phone",
+      "type": "badge",
+      "icon": "phone",
+      "text": "{{ business.phone }}",
+      "box": { "x": 250, "y": 144, "w": 380, "h": 56 },
+      "style": { "background": "#ffffff", "color": "{{ brand.colors.primary || '#1e3a8a' }}", "fontFamily": "Noto Sans", "fontWeight": 700, "fontSize": 26 }
+    },
+    {
+      "id": "website",
+      "type": "badge",
+      "icon": "globe",
+      "text": "{{ business.website || business.email }}",
+      "box": { "x": 646, "y": 144, "w": 404, "h": 56 },
+      "style": { "background": "#ffffff22", "color": "#ffffff", "fontFamily": "Noto Sans", "fontWeight": 600, "fontSize": 24, "border": { "color": "#ffffff88", "width": 2 } }
+    }
+  ]
+}

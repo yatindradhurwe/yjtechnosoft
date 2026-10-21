@@ -1,0 +1,21 @@
+{
+  "name": "poster-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Headless branded-creative renderer: merges a business profile into JSON templates and outputs PNG/WebP/JPEG",
+  "main": "src/index.js",
+  "scripts": {
+    "demo": "node scripts/demo.js",
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=18.17"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "qrcode": "^1.5.4",
+    "sharp": "^0.34.5"
+  }
+}

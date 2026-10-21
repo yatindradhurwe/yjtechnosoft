@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1200" viewBox="0 0 1600 1200">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#e0f2fe"/></linearGradient>
+    <pattern id="win" width="60" height="70" patternUnits="userSpaceOnUse"><rect x="10" y="12" width="40" height="46" fill="#bae6fd" stroke="#0369a1" stroke-width="2"/></pattern>
+  </defs>
+  <rect width="1600" height="1200" fill="url(#sky)"/>
+  <rect x="0" y="1000" width="1600" height="200" fill="#4d7c0f"/>
+  <rect x="420" y="220" width="360" height="800" fill="#f1f5f9"/><rect x="420" y="220" width="360" height="800" fill="url(#win)"/>
+  <rect x="820" y="360" width="380" height="660" fill="#e2e8f0"/><rect x="820" y="360" width="380" height="660" fill="url(#win)"/>
+  <rect x="200" y="520" width="200" height="500" fill="#cbd5e1"/><rect x="200" y="520" width="200" height="500" fill="url(#win)"/>
+  <rect x="1220" y="600" width="220" height="420" fill="#cbd5e1"/><rect x="1220" y="600" width="220" height="420" fill="url(#win)"/>
+  <circle cx="150" cy="980" r="70" fill="#15803d"/><circle cx="1500" cy="990" r="60" fill="#15803d"/>
+</svg>
