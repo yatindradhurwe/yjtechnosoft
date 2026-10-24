@@ -23,6 +23,9 @@ export function errorHandler(err: unknown, req: Request, res: Response, _next: N
   const e = err as { type?: string; status?: number };
   if (e?.type === 'entity.parse.failed') return res.status(400).json({ message: 'Malformed JSON body', code: 'bad_request' });
   if (e?.type === 'entity.too.large') return res.status(413).json({ message: 'Request body too large', code: 'too_large' });
+  if (typeof e?.status === 'number' && e.status >= 400 && e.status < 500) {
+    return res.status(e.status).json({ message: e.status === 404 ? 'Not found' : 'Request failed', code: 'request_error' });
+  }
 
   logger.error({ err, path: req.path, method: req.method }, 'unhandled error');
   res.status(500).json({
