@@ -1,5 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '@/lib/api';
 import { RequireAuth } from '@/components/RequireAuth';
 import { useAuth } from '@/lib/auth';
 import { Spinner } from '@/components/ui/misc';
@@ -33,12 +35,24 @@ function AppIndex() {
   return <Navigate to="/onboarding" replace />;
 }
 
+/**
+ * Creator subdomains and verified custom domains open the creator's store.
+ * The main app host gets a 404 from the lookup and shows the marketing site.
+ */
+function HomeOrStore() {
+  const host = window.location.hostname;
+  const q = useQuery({ queryKey: ['host', host], queryFn: () => api.get<{ tenantSlug: string }>(`/domains?host=${encodeURIComponent(host)}`), retry: false, staleTime: Infinity, enabled: host !== 'localhost' && host !== '127.0.0.1' });
+  if (q.isFetching) return <Loading />;
+  if (q.data?.tenantSlug) return <Navigate to={`/s/${q.data.tenantSlug}`} replace />;
+  return <CmsPage slug="home" />;
+}
+
 export default function App() {
   return (
     <Suspense fallback={<Loading />}>
       <Routes>
         <Route element={<MarketingLayout />}>
-          <Route path="/" element={<CmsPage slug="home" />} />
+          <Route path="/" element={<HomeOrStore />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />

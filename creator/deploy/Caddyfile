@@ -1,0 +1,20 @@
+# Caddy in front of the stack. Issues certificates automatically, including
+# on-demand certificates for creators' verified custom domains only.
+{
+  email ops@example.com
+  on_demand_tls {
+    # API answers 200 only for hostnames verified via DNS TXT (see Settings › Domains)
+    ask http://127.0.0.1:8080/api/domains/tls-allowed
+  }
+}
+
+app.example.com, *.example.com {
+  # *.example.com requires a DNS provider plugin for the wildcard certificate
+  reverse_proxy 127.0.0.1:8080
+}
+
+# Creator custom domains (CNAME custom.example.com → this server)
+https:// {
+  tls { on_demand }
+  reverse_proxy 127.0.0.1:8080
+}

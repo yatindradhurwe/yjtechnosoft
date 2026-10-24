@@ -226,3 +226,7 @@ server/
 * Resumes, employee documents, expense receipts and vault files are served only to logged-in admin/HR/accounts users, or through signed share links.
 * Server/hosting passwords saved under **Servers & Domains** are stored in the database as entered. Restrict who has the Accounts/Admin role, and keep database backups secure.
 * Take regular backups of the MySQL database and the `server/uploads` folder.
+
+## Creator platform
+
+A separate multi-tenant creator-business platform (courses, workshops, communities, storefront, payments, CRM, Super Admin) lives in [`creator/`](creator/README.md). It has its own API, web app, database and documentation.
