@@ -68,22 +68,35 @@ export async function fulfilOrder(tx: Tx, orderId: string) {
     ]);
     let expiresAt: Date | null = null;
     if (price.type === 'RECURRING' && price.interval) {
-      const start = new Date();
-      expiresAt = new Date(start.getTime() + INTERVAL_DAYS[price.interval] * 86400_000);
-      await tx.customerSubscription.create({
-        data: {
-          tenantId: order.tenantId,
-          userId: order.userId,
-          productId: product.id,
-          priceId: price.id,
-          provider: 'FREE',
-          // Manual-renewal subscription; provider-managed auto-debit is tracked in docs/FEATURE_MATRIX.md
-          providerSubscriptionId: `order:${order.id}:${item.id}`,
-          status: 'ACTIVE',
-          currentPeriodStart: start,
-          currentPeriodEnd: expiresAt,
-        },
+      // Renewal: extend the member's current period (from its end if still running, else from now)
+      const existing = await tx.customerSubscription.findFirst({
+        where: { tenantId: order.tenantId, userId: order.userId, productId: product.id, status: { in: ['ACTIVE', 'GRACE', 'PAST_DUE', 'EXPIRED', 'TRIALING'] } },
+        orderBy: { currentPeriodEnd: 'desc' },
       });
+      const now = new Date();
+      const start = existing && existing.currentPeriodEnd > now ? existing.currentPeriodEnd : now;
+      expiresAt = new Date(start.getTime() + INTERVAL_DAYS[price.interval] * 86400_000);
+      if (existing) {
+        await tx.customerSubscription.update({
+          where: { id: existing.id },
+          data: { status: 'ACTIVE', priceId: price.id, currentPeriodStart: start, currentPeriodEnd: expiresAt, graceUntil: null, cancelAtPeriodEnd: false, canceledAt: null },
+        });
+      } else {
+        await tx.customerSubscription.create({
+          data: {
+            tenantId: order.tenantId,
+            userId: order.userId,
+            productId: product.id,
+            priceId: price.id,
+            provider: 'FREE',
+            // Manual-renewal subscription; provider-managed auto-debit is tracked in docs/FEATURE_MATRIX.md
+            providerSubscriptionId: `order:${order.id}:${item.id}`,
+            status: 'ACTIVE',
+            currentPeriodStart: start,
+            currentPeriodEnd: expiresAt,
+          },
+        });
+      }
     } else if (price.accessDays) {
       expiresAt = new Date(Date.now() + price.accessDays * 86400_000);
     }

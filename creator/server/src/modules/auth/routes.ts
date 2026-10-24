@@ -161,6 +161,26 @@ authRouter.post('/password/change', requireAuth, authLimiter, async (req, res) =
   res.json({ ...(await issueSession(user.id, req, res)) });
 });
 
+/** Personal data export (JSON): profile, memberships, orders, enrollments, posts, messages */
+authRouter.get('/me/export', requireAuth, async (req, res) => {
+  const id = req.user!.id;
+  const [user, memberships, orders, enrollments, progress, posts, comments, messages, bookings, registrations, certificates] = await Promise.all([
+    prisma.user.findUniqueOrThrow({ where: { id }, select: { id: true, email: true, name: true, phone: true, createdAt: true, emailVerifiedAt: true, lastLoginAt: true } }),
+    prisma.membership.findMany({ where: { userId: id }, include: { tenant: { select: { name: true, slug: true } } } }),
+    prisma.order.findMany({ where: { userId: id }, include: { items: true, invoice: true } }),
+    prisma.enrollment.findMany({ where: { userId: id }, include: { course: { select: { title: true } } } }),
+    prisma.lessonProgress.findMany({ where: { userId: id } }),
+    prisma.post.findMany({ where: { authorId: id } }),
+    prisma.comment.findMany({ where: { authorId: id } }),
+    prisma.message.findMany({ where: { senderId: id } }),
+    prisma.booking.findMany({ where: { customerId: id } }),
+    prisma.workshopRegistration.findMany({ where: { userId: id } }),
+    prisma.certificate.findMany({ where: { userId: id } }),
+  ]);
+  await audit({ action: 'user.export', entityType: 'user', entityId: id, req });
+  res.set('content-disposition', 'attachment; filename="my-data.json"').json({ exportedAt: new Date().toISOString(), user, memberships, orders, enrollments, progress, posts, comments, messages, bookings, registrations, certificates });
+});
+
 /** Account deletion: anonymises personal data, keeps financial records for legal retention */
 authRouter.delete('/me', requireAuth, async (req, res) => {
   const owned = await prisma.tenant.count({ where: { ownerId: req.user!.id, deletedAt: null } });

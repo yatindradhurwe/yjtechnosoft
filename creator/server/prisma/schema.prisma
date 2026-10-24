@@ -132,6 +132,10 @@ model Tenant {
   gstStateCode     String?
   taxRateBps       Int          @default(1800)
   pricesIncludeTax Boolean      @default(true)
+  /// Members may post short videos to the feed (otherwise creator team only)
+  memberFeedPosts  Boolean      @default(false)
+  /// Max short-video upload size in MB
+  maxVideoMb       Int          @default(100)
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
   deletedAt        DateTime?
@@ -1862,4 +1866,113 @@ model SupportAccessGrant {
   createdAt   DateTime  @default(now())
 
   @@index([tenantId, expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Creator tools (calculators, trackers, worksheets) – constrained definitions,
+// formulas evaluated by a safe parser (src/modules/tools/formula.ts), no code execution
+// ---------------------------------------------------------------------------
+
+enum ToolAccess {
+  PUBLIC
+  MEMBERS
+  PRODUCT
+}
+
+model CreatorTool {
+  id          String     @id @default(uuid()) @db.Uuid
+  tenantId    String     @db.Uuid
+  slug        String
+  title       String
+  description String?
+  status      PageStatus @default(DRAFT)
+  access      ToolAccess @default(PUBLIC)
+  productId   String?    @db.Uuid
+  /// {"fields":[...],"outputs":[...],"saveResults":true,"leadCapture":false}
+  definition  Json
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  submissions ToolSubmission[]
+
+  @@unique([tenantId, slug])
+}
+
+model ToolSubmission {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  toolId    String   @db.Uuid
+  userId    String?  @db.Uuid
+  inputs    Json
+  outputs   Json
+  createdAt DateTime @default(now())
+
+  tool CreatorTool @relation(fields: [toolId], references: [id], onDelete: Cascade)
+
+  @@index([toolId, userId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Short-form video feed
+// ---------------------------------------------------------------------------
+
+enum FeedVisibility {
+  PUBLIC
+  MEMBERS
+  PAID
+}
+
+model FeedPost {
+  id           String         @id @default(uuid()) @db.Uuid
+  tenantId     String         @db.Uuid
+  authorId     String         @db.Uuid
+  mediaAssetId String         @db.Uuid
+  thumbnailUrl String?
+  caption      String?
+  visibility   FeedVisibility @default(PUBLIC)
+  productId    String?        @db.Uuid
+  status       ContentStatus  @default(VISIBLE)
+  viewCount    Int            @default(0)
+  createdAt    DateTime       @default(now())
+  deletedAt    DateTime?
+
+  likes    FeedLike[]
+  comments FeedComment[]
+  views    FeedView[]
+
+  @@index([tenantId, createdAt])
+}
+
+model FeedLike {
+  postId    String   @db.Uuid
+  userId    String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  post FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+}
+
+model FeedView {
+  postId    String   @db.Uuid
+  viewerKey String
+  createdAt DateTime @default(now())
+
+  post FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([postId, viewerKey])
+}
+
+model FeedComment {
+  id        String        @id @default(uuid()) @db.Uuid
+  tenantId  String        @db.Uuid
+  postId    String        @db.Uuid
+  userId    String        @db.Uuid
+  body      String
+  status    ContentStatus @default(VISIBLE)
+  createdAt DateTime      @default(now())
+
+  post FeedPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
 }

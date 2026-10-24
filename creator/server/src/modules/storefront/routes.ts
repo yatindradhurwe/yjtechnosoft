@@ -17,6 +17,7 @@ import { capturePayment } from '../commerce/capture';
 import { isCourseLive } from '../courses/service';
 import { upsertContact } from '../customers/service';
 import { resolveAttribution } from '../affiliates/attribution';
+import { dispatchAutomationEvent } from '../marketing/automation';
 
 /** Public, branded storefront for a workspace: /api/store/:tenantSlug/... */
 export const storefrontRouter = Router({ mergeParams: true });
@@ -146,6 +147,16 @@ storefrontRouter.post('/checkout', publicWriteLimiter, requireAuth, async (req, 
   const ownKey = product.type === 'MEMBERSHIP' ? 'MEMBERSHIP' : 'PRODUCT';
   if (price.type === 'ONE_TIME' && !price.accessDays && (await hasEntitlement(user.id, tenant.id, ownKey, product.id))) {
     throw conflict('You already own this. Open it from your library.');
+  }
+  // Do not take payment for a workshop seat that cannot exist
+  const workshopItems = await prisma.productItem.findMany({ where: { productId: product.id, resourceType: 'WORKSHOP' } });
+  for (const wi of workshopItems) {
+    const w = await prisma.workshop.findUnique({ where: { id: wi.resourceId } });
+    if (!w || w.status !== 'PUBLISHED' || w.startsAt < new Date()) throw conflict('This workshop is no longer open for registration');
+    if (w.capacity !== null && !w.waitlistEnabled) {
+      const taken = await prisma.workshopRegistration.count({ where: { workshopId: w.id, status: 'REGISTERED' } });
+      if (taken >= w.capacity) throw conflict('This workshop is sold out');
+    }
   }
   const { coupon, discount } = await resolveCoupon(tenant.id, input.couponCode, product.id, user.id, price.amount);
   const quote = computeQuote(tenant, price, discount, input.buyer.country);
@@ -279,6 +290,8 @@ storefrontRouter.post('/leads', publicWriteLimiter, async (req, res) => {
   );
   const supp = await prisma.suppression.findUnique({ where: { tenantId_channel_address: { tenantId: req.tenant!.id, channel: 'EMAIL', address: input.email } } });
   if (supp) await prisma.suppression.delete({ where: { tenantId_channel_address: { tenantId: req.tenant!.id, channel: 'EMAIL', address: input.email } } });
-  await upsertContact(prisma, req.tenant!.id, { email: input.email, name: input.name, phone: input.phone, source: input.source, consentEmail: true, tag: input.tag });
+  const contact = await upsertContact(prisma, req.tenant!.id, { email: input.email, name: input.name, phone: input.phone, source: input.source, consentEmail: true, tag: input.tag });
+  await dispatchAutomationEvent(req.tenant!.id, 'lead.created', contact.id, { key: input.source });
+  if (input.tag) await dispatchAutomationEvent(req.tenant!.id, 'tag.added', contact.id, { tag: input.tag });
   res.status(201).json({ ok: true });
 });

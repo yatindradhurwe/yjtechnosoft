@@ -13,6 +13,8 @@ export interface EmailMessage {
   campaignId?: string;
   contactId?: string;
   fromName?: string;
+  /** Adds List-Unsubscribe headers (marketing email) */
+  unsubscribeUrl?: string;
 }
 
 /** Test hook: every message is captured here when NODE_ENV=test */
@@ -82,7 +84,14 @@ export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
           auth: cfg.user ? { user: cfg.user, pass: cfg.password } : undefined,
         });
         const from = msg.fromName ? `${msg.fromName.replace(/[<>"]/g, '')} <${cfg.from.replace(/^.*<|>.*$/g, '')}>` : cfg.from;
-        const info = await transport.sendMail({ from, to: msg.to, subject: msg.subject, text: msg.text, html: msg.html });
+        const info = await transport.sendMail({
+          from,
+          to: msg.to,
+          subject: msg.subject,
+          text: msg.text,
+          html: msg.html,
+          list: msg.unsubscribeUrl ? { unsubscribe: { url: msg.unsubscribeUrl, comment: 'Unsubscribe' } } : undefined,
+        });
         providerMessageId = info.messageId;
         result = { status: 'SENT' };
       } catch (e) {
