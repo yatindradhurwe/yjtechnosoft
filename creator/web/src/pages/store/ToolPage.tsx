@@ -90,7 +90,7 @@ export default function ToolPage() {
                     {result && (
                       <div className="mt-6 grid gap-3 sm:grid-cols-2" aria-live="polite">
                         {t.outputs.map((o: any) => (
-                          <div key={o.key} className="rounded-lg bg-[var(--brand)]/10 p-4">
+                          <div key={o.key} className="rounded-lg bg-primary/10 p-4">
                             <p className="text-sm text-muted-foreground">{o.label}</p>
                             <p className="text-2xl font-bold">{format(result[o.key], o, store.currency)}</p>
                           </div>

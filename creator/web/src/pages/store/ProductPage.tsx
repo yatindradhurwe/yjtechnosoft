@@ -125,7 +125,7 @@ function Checkout({ product, owned }: { product: any; owned: boolean }) {
       {product.prices.length > 1 && (
         <div className="space-y-2" role="radiogroup" aria-label="Choose an option">
           {product.prices.map((p: any) => (
-            <label key={p.id} className="flex cursor-pointer items-center justify-between rounded-lg border p-3 has-[:checked]:border-[var(--brand)] has-[:checked]:bg-[var(--brand)]/5">
+            <label key={p.id} className="flex cursor-pointer items-center justify-between rounded-lg border p-3 has-[:checked]:border-[var(--brand)] has-[:checked]:bg-primary/5">
               <span className="flex items-center gap-2"><input type="radio" name="price" checked={priceId === p.id} onChange={() => setPriceId(p.id)} />{p.label ?? (p.type === 'RECURRING' ? `Every ${p.interval.toLowerCase()}` : p.accessDays ? `${p.accessDays} days access` : 'Lifetime access')}</span>
               <span className="font-semibold">{p.amount ? money(p.amount, p.currency) : 'Free'}</span>
             </label>

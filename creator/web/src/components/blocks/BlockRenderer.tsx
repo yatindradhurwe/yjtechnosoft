@@ -163,7 +163,7 @@ export function BlockView({ block, ctx }: { block: Block; ctx: Ctx }) {
           <div className={cn('mt-10 grid gap-6 text-left sm:grid-cols-2', block.columns === 3 && 'lg:grid-cols-3', block.columns === 4 && 'lg:grid-cols-4')}>
             {block.items.map((it, i) => (
               <div key={i} className="rounded-xl border bg-card p-6 text-card-foreground shadow-sm">
-                <div className="mb-4 inline-flex rounded-lg bg-[var(--brand)]/10 p-2.5 text-[var(--brand)]">
+                <div className="mb-4 inline-flex rounded-lg bg-primary/10 p-2.5 text-[var(--brand)]">
                   <Icon name={it.icon} />
                 </div>
                 <h3 className="font-sans text-base font-semibold">{it.title}</h3>
@@ -259,7 +259,7 @@ export function BlockView({ block, ctx }: { block: Block; ctx: Ctx }) {
           {block.subheading && <p className="mt-2 text-muted-foreground">{block.subheading}</p>}
           <div className="mt-10 grid gap-6 text-left md:grid-cols-3">
             {items.map((it, i) => (
-              <div key={i} className={cn('flex flex-col rounded-xl border bg-card p-6 text-card-foreground shadow-sm', it.highlighted && 'border-[var(--brand)] ring-2 ring-[var(--brand)]/30')}>
+              <div key={i} className={cn('flex flex-col rounded-xl border bg-card p-6 text-card-foreground shadow-sm', it.highlighted && 'border-[var(--brand)] ring-2 ring-primary/30')}>
                 <h3 className="font-sans text-lg font-semibold">{it.name}</h3>
                 <p className="mt-3">
                   <span className="font-display text-3xl font-bold">{it.price}</span>

@@ -13,7 +13,7 @@ export function ProductCard({ p, slug }: { p: any; slug: string }) {
   const price = p.prices[0];
   return (
     <Link to={`/s/${slug}/p/${p.slug}`} className="group flex flex-col overflow-hidden rounded-xl border bg-card shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-      <div className="aspect-video bg-gradient-to-br from-[var(--brand)]/20 to-[var(--brand)]/5">{p.coverUrl && <img src={p.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />}</div>
+      <div className="aspect-video bg-gradient-to-br from-primary/20 to-primary/5">{p.coverUrl && <img src={p.coverUrl} alt="" className="h-full w-full object-cover" loading="lazy" />}</div>
       <div className="flex flex-1 flex-col p-4">
         <Badge variant="outline" className="mb-2 w-fit">{PRODUCT_TYPES[p.type]}</Badge>
         <h3 className="font-sans font-semibold group-hover:underline">{p.title}</h3>
@@ -36,7 +36,7 @@ export default function StoreHome() {
   const workshops = useQuery({ queryKey: ['store-workshops', store.slug], queryFn: () => api.get(`/store/${store.slug}/workshops`) });
   return (
     <>
-      <section className="border-b bg-gradient-to-b from-[var(--brand)]/10 to-transparent py-16">
+      <section className="border-b bg-gradient-to-b from-primary/10 to-transparent py-16">
         <div className="container max-w-3xl text-center">
           {store.logoUrl && <img src={store.logoUrl} alt="" className="mx-auto mb-4 h-16 w-16 rounded-xl object-cover" />}
           <h1 className="text-4xl font-extrabold">{store.name}</h1>

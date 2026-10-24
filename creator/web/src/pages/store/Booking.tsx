@@ -63,7 +63,7 @@ function SlotPicker({ offering }: { offering: any }) {
             <p className="text-xs text-muted-foreground">Times shown in your time zone ({tz}).</p>
             <div className="flex gap-2 overflow-x-auto pb-2">
               {days.map((d) => (
-                <button key={d} onClick={() => { setDay(d); setSlot(null); }} className={cn('min-w-[84px] rounded-lg border px-3 py-2 text-center text-sm', activeDay === d ? 'border-[var(--brand)] bg-[var(--brand)]/10 font-semibold' : 'hover:bg-muted')}>
+                <button key={d} onClick={() => { setDay(d); setSlot(null); }} className={cn('min-w-[84px] rounded-lg border px-3 py-2 text-center text-sm', activeDay === d ? 'border-[var(--brand)] bg-primary/10 font-semibold' : 'hover:bg-muted')}>
                   {new Date(`${d}T00:00`).toLocaleDateString(undefined, { weekday: 'short' })}<span className="block">{new Date(`${d}T00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</span>
                 </button>
               ))}
