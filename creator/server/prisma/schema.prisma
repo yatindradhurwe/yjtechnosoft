@@ -1,0 +1,1865 @@
+// Creator platform – PostgreSQL schema
+//
+// Conventions
+// * UUID primary keys, createdAt/updatedAt on mutable rows.
+// * Every tenant-owned row carries tenantId and is indexed by it. Services always
+//   filter by tenantId (see src/lib/tenantScope.ts) – never trust an id alone.
+// * Money is stored as integer minor units (paise / cents) with an ISO currency.
+// * Soft deletion (deletedAt) where creators expect "undo" or history matters.
+// * Constraints Prisma cannot express (exclusion constraints for bookings) live in
+//   hand-written SQL inside the migrations folder.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Identity, sessions, tenancy
+// ---------------------------------------------------------------------------
+
+enum PlatformRole {
+  USER
+  SUPPORT
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model User {
+  id               String       @id @default(uuid()) @db.Uuid
+  email            String       @unique
+  name             String
+  passwordHash     String?
+  emailVerifiedAt  DateTime?
+  phone            String?
+  avatarUrl        String?
+  platformRole     PlatformRole @default(USER)
+  status           UserStatus   @default(ACTIVE)
+  failedLoginCount Int          @default(0)
+  lockedUntil      DateTime?
+  lastLoginAt      DateTime?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
+
+  sessions           Session[]
+  memberships        Membership[]
+  verificationTokens VerificationToken[]
+  ownedTenants       Tenant[]            @relation("TenantOwner")
+  enrollments        Enrollment[]
+  orders             Order[]
+  entitlements       Entitlement[]
+  notifications      Notification[]
+}
+
+model Session {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @db.Uuid
+  tokenHash    String    @unique
+  familyId     String    @db.Uuid
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedById String?   @db.Uuid
+  userAgent    String?
+  ip           String?
+  createdAt    DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+enum TokenPurpose {
+  EMAIL_VERIFY
+  LOGIN_OTP
+  PASSWORD_RESET
+}
+
+model VerificationToken {
+  id         String       @id @default(uuid()) @db.Uuid
+  userId     String?      @db.Uuid
+  email      String
+  purpose    TokenPurpose
+  codeHash   String
+  attempts   Int          @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime     @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, purpose])
+}
+
+enum TenantStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Tenant {
+  id               String       @id @default(uuid()) @db.Uuid
+  slug             String       @unique
+  name             String
+  status           TenantStatus @default(ACTIVE)
+  suspendedReason  String?
+  ownerId          String       @db.Uuid
+  // Branding
+  logoUrl          String?
+  faviconUrl       String?
+  primaryColor     String       @default("#6d28d9")
+  accentColor      String       @default("#f59e0b")
+  fontFamily       String       @default("Inter")
+  tagline          String?
+  about            String?
+  supportEmail     String?
+  socialImageUrl   String?
+  // Commerce & tax
+  country          String       @default("IN")
+  currency         String       @default("INR")
+  timezone         String       @default("Asia/Kolkata")
+  legalName        String?
+  address          String?
+  gstin            String?
+  gstStateCode     String?
+  taxRateBps       Int          @default(1800)
+  pricesIncludeTax Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  deletedAt        DateTime?
+
+  owner         User                 @relation("TenantOwner", fields: [ownerId], references: [id])
+  memberships   Membership[]
+  subscriptions TenantSubscription[]
+  courses       Course[]
+  products      Product[]
+  orders        Order[]
+  mediaAssets   MediaAsset[]
+  customDomains CustomDomain[]
+}
+
+enum TenantRole {
+  OWNER
+  ADMIN
+  TEAM_MEMBER
+  INSTRUCTOR
+  AFFILIATE
+  STUDENT
+  MODERATOR
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+/// A user's relationship with a workspace. Roles grant default permissions
+/// (src/lib/permissions.ts); `permissions` adds granular extra grants.
+model Membership {
+  id          String           @id @default(uuid()) @db.Uuid
+  tenantId    String           @db.Uuid
+  userId      String           @db.Uuid
+  roles       TenantRole[]
+  permissions String[]         @default([])
+  status      MembershipStatus @default(ACTIVE)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId])
+  @@index([userId])
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+  WEBHOOK
+}
+
+model AuditLog {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String?   @db.Uuid
+  actorId    String?   @db.Uuid
+  actorType  ActorType @default(USER)
+  action     String
+  entityType String?
+  entityId   String?
+  ip         String?
+  userAgent  String?
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([actorId])
+  @@index([action])
+}
+
+// ---------------------------------------------------------------------------
+// SaaS plans, entitlements, feature flags
+// ---------------------------------------------------------------------------
+
+model SubscriptionPlan {
+  id             String   @id @default(uuid()) @db.Uuid
+  key            String   @unique
+  name           String
+  description    String?
+  currency       String   @default("INR")
+  priceMonthly   Int      @default(0)
+  priceYearly    Int      @default(0)
+  platformFeeBps Int      @default(500)
+  /// Limits & feature switches, e.g. {"maxCourses":3,"storageMb":2048,"aiCreditsMonthly":100,"customDomain":false}
+  limits         Json     @default("{}")
+  isPublic       Boolean  @default(true)
+  active         Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  tenantSubscriptions TenantSubscription[]
+}
+
+enum SaasSubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+model TenantSubscription {
+  id                     String                 @id @default(uuid()) @db.Uuid
+  tenantId               String                 @db.Uuid
+  planId                 String                 @db.Uuid
+  status                 SaasSubscriptionStatus @default(ACTIVE)
+  currentPeriodStart     DateTime               @default(now())
+  currentPeriodEnd       DateTime?
+  cancelAtPeriodEnd      Boolean                @default(false)
+  provider               PaymentProvider?
+  providerSubscriptionId String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+
+  tenant Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan   SubscriptionPlan @relation(fields: [planId], references: [id])
+
+  @@index([tenantId, status])
+}
+
+enum ResourceType {
+  COURSE
+  PRODUCT
+  MEMBERSHIP
+  WORKSHOP
+  DOWNLOAD
+  COMMUNITY
+  CONSULTATION
+}
+
+enum EntitlementSource {
+  ORDER
+  SUBSCRIPTION
+  MANUAL
+  FREE
+}
+
+enum EntitlementStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
+/// The single source of truth for "may this user access this resource".
+model Entitlement {
+  id           String            @id @default(uuid()) @db.Uuid
+  tenantId     String            @db.Uuid
+  userId       String            @db.Uuid
+  resourceType ResourceType
+  resourceId   String            @db.Uuid
+  sourceType   EntitlementSource
+  sourceId     String            @db.Uuid
+  status       EntitlementStatus @default(ACTIVE)
+  startsAt     DateTime          @default(now())
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, userId, resourceType, resourceId, sourceType, sourceId])
+  @@index([tenantId, resourceType, resourceId])
+  @@index([userId])
+}
+
+model FeatureFlag {
+  id              String   @id @default(uuid()) @db.Uuid
+  key             String   @unique
+  description     String?
+  enabled         Boolean  @default(false)
+  rolloutPercent  Int      @default(100)
+  tenantAllowlist String[] @default([])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Media
+// ---------------------------------------------------------------------------
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+  OTHER
+}
+
+enum MediaVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum StorageProvider {
+  LOCAL
+  S3
+  MUX
+}
+
+enum MediaStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+model MediaAsset {
+  id              String          @id @default(uuid()) @db.Uuid
+  tenantId        String          @db.Uuid
+  uploaderId      String?         @db.Uuid
+  kind            MediaKind
+  visibility      MediaVisibility @default(PRIVATE)
+  storage         StorageProvider @default(LOCAL)
+  storageKey      String
+  filename        String
+  mimeType        String
+  sizeBytes       Int
+  providerAssetId String?
+  playbackId      String?
+  status          MediaStatus     @default(READY)
+  createdAt       DateTime        @default(now())
+  deletedAt       DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, kind])
+}
+
+// ---------------------------------------------------------------------------
+// Courses / LMS
+// ---------------------------------------------------------------------------
+
+enum CourseStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  UNPUBLISHED
+  ARCHIVED
+}
+
+enum DripMode {
+  NONE
+  SEQUENTIAL
+  DAYS_AFTER_ENROLLMENT
+  FIXED_DATE
+}
+
+model Course {
+  id                 String       @id @default(uuid()) @db.Uuid
+  tenantId           String       @db.Uuid
+  slug               String
+  title              String
+  subtitle           String?
+  description        String?
+  coverUrl           String?
+  category           String?
+  level              String?
+  status             CourseStatus @default(DRAFT)
+  publishAt          DateTime?
+  dripMode           DripMode     @default(NONE)
+  /// Issue a certificate when every lesson is complete
+  certificateEnabled Boolean      @default(false)
+  createdById        String?      @db.Uuid
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  deletedAt          DateTime?
+
+  tenant       Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  modules      CourseModule[]
+  lessons      Lesson[]
+  enrollments  Enrollment[]
+  instructors  CourseInstructor[]
+  certificates Certificate[]
+  reviews      CourseReview[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, status])
+}
+
+model CourseInstructor {
+  courseId String @db.Uuid
+  userId   String @db.Uuid
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, userId])
+}
+
+model CourseModule {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  courseId  String   @db.Uuid
+  title     String
+  position  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@index([courseId, position])
+}
+
+enum LessonType {
+  VIDEO
+  AUDIO
+  TEXT
+  PDF
+  EMBED
+  QUIZ
+  ASSIGNMENT
+}
+
+model Lesson {
+  id           String     @id @default(uuid()) @db.Uuid
+  tenantId     String     @db.Uuid
+  courseId     String     @db.Uuid
+  moduleId     String     @db.Uuid
+  title        String
+  type         LessonType @default(TEXT)
+  /// Plain text / markdown body. Rendered as text (never raw HTML) on the client.
+  body         String?
+  embedUrl     String?
+  mediaAssetId String?    @db.Uuid
+  durationSec  Int?
+  position     Int
+  isPreview    Boolean    @default(false)
+  published    Boolean    @default(true)
+  /// Drip: unlock N days after enrollment (DAYS_AFTER_ENROLLMENT)
+  dripDays     Int?
+  /// Drip: unlock on a fixed date (FIXED_DATE)
+  availableAt  DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  course     Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  module     CourseModule     @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  resources  LessonResource[]
+  progress   LessonProgress[]
+  quiz       Quiz?
+  assignment Assignment?
+
+  @@index([courseId, position])
+  @@index([moduleId, position])
+}
+
+model LessonResource {
+  id           String @id @default(uuid()) @db.Uuid
+  lessonId     String @db.Uuid
+  mediaAssetId String @db.Uuid
+  title        String
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  REVOKED
+}
+
+model Enrollment {
+  id           String           @id @default(uuid()) @db.Uuid
+  tenantId     String           @db.Uuid
+  courseId     String           @db.Uuid
+  userId       String           @db.Uuid
+  status       EnrollmentStatus @default(ACTIVE)
+  progressPct  Int              @default(0)
+  lastLessonId String?          @db.Uuid
+  enrolledAt   DateTime         @default(now())
+  completedAt  DateTime?
+  updatedAt    DateTime         @updatedAt
+
+  course   Course           @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  user     User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  progress LessonProgress[]
+
+  @@unique([courseId, userId])
+  @@index([tenantId, status])
+}
+
+model LessonProgress {
+  id           String    @id @default(uuid()) @db.Uuid
+  tenantId     String    @db.Uuid
+  enrollmentId String    @db.Uuid
+  lessonId     String    @db.Uuid
+  userId       String    @db.Uuid
+  positionSec  Int       @default(0)
+  completedAt  DateTime?
+  updatedAt    DateTime  @updatedAt
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  lesson     Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, lessonId])
+}
+
+model Quiz {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  lessonId String @unique @db.Uuid
+  passPct  Int    @default(60)
+
+  lesson    Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions Question[]
+  attempts  QuizAttempt[]
+}
+
+enum QuestionType {
+  SINGLE
+  MULTIPLE
+}
+
+model Question {
+  id       String       @id @default(uuid()) @db.Uuid
+  quizId   String       @db.Uuid
+  prompt   String
+  type     QuestionType @default(SINGLE)
+  /// ["Option A", "Option B", ...]
+  options  Json
+  /// Indexes of the correct options, e.g. [1]
+  correct  Json
+  points   Int          @default(1)
+  position Int
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model QuizAttempt {
+  id        String   @id @default(uuid()) @db.Uuid
+  quizId    String   @db.Uuid
+  userId    String   @db.Uuid
+  answers   Json
+  score     Int
+  maxScore  Int
+  passed    Boolean
+  createdAt DateTime @default(now())
+
+  quiz Quiz @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  @@index([quizId, userId])
+}
+
+model Assignment {
+  id           String @id @default(uuid()) @db.Uuid
+  tenantId     String @db.Uuid
+  lessonId     String @unique @db.Uuid
+  instructions String
+  maxScore     Int    @default(100)
+
+  lesson      Lesson                 @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  submissions AssignmentSubmission[]
+}
+
+enum SubmissionStatus {
+  SUBMITTED
+  GRADED
+  RETURNED
+}
+
+model AssignmentSubmission {
+  id           String           @id @default(uuid()) @db.Uuid
+  assignmentId String           @db.Uuid
+  userId       String           @db.Uuid
+  text         String?
+  mediaAssetId String?          @db.Uuid
+  status       SubmissionStatus @default(SUBMITTED)
+  score        Int?
+  feedback     String?
+  gradedById   String?          @db.Uuid
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, userId])
+}
+
+model Certificate {
+  id               String   @id @default(uuid()) @db.Uuid
+  tenantId         String   @db.Uuid
+  courseId         String   @db.Uuid
+  userId           String   @db.Uuid
+  verificationCode String   @unique
+  recipientName    String
+  courseTitle      String
+  issuedAt         DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, userId])
+}
+
+model CourseReview {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  courseId  String   @db.Uuid
+  userId    String   @db.Uuid
+  rating    Int
+  body      String?
+  createdAt DateTime @default(now())
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([courseId, userId])
+}
+
+// ---------------------------------------------------------------------------
+// Storefront, orders, payments
+// ---------------------------------------------------------------------------
+
+enum ProductType {
+  COURSE
+  BUNDLE
+  DIGITAL_DOWNLOAD
+  MEMBERSHIP
+  WORKSHOP
+  CONSULTATION
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Product {
+  id          String        @id @default(uuid()) @db.Uuid
+  tenantId    String        @db.Uuid
+  slug        String
+  type        ProductType
+  title       String
+  description String?
+  coverUrl    String?
+  category    String?
+  featured    Boolean       @default(false)
+  status      ProductStatus @default(DRAFT)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  items  ProductItem[]
+  prices ProductPrice[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, status])
+}
+
+/// What a purchase of the product grants (a course, a downloadable file, ...)
+model ProductItem {
+  id           String       @id @default(uuid()) @db.Uuid
+  productId    String       @db.Uuid
+  resourceType ResourceType
+  resourceId   String       @db.Uuid
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, resourceType, resourceId])
+}
+
+enum PriceType {
+  ONE_TIME
+  RECURRING
+}
+
+enum BillingInterval {
+  MONTH
+  QUARTER
+  YEAR
+}
+
+model ProductPrice {
+  id              String           @id @default(uuid()) @db.Uuid
+  tenantId        String           @db.Uuid
+  productId       String           @db.Uuid
+  label           String?
+  currency        String           @default("INR")
+  amount          Int
+  compareAtAmount Int?
+  type            PriceType        @default(ONE_TIME)
+  interval        BillingInterval?
+  trialDays       Int              @default(0)
+  /// null = lifetime access
+  accessDays      Int?
+  active          Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+enum CouponType {
+  PERCENT
+  FIXED
+}
+
+model Coupon {
+  id             String     @id @default(uuid()) @db.Uuid
+  tenantId       String     @db.Uuid
+  code           String
+  type           CouponType
+  /// Basis points for PERCENT (1000 = 10%), minor units for FIXED
+  value          Int
+  maxRedemptions Int?
+  redeemedCount  Int        @default(0)
+  perUserLimit   Int        @default(1)
+  startsAt       DateTime?
+  endsAt         DateTime?
+  productIds     String[]   @default([])
+  active         Boolean    @default(true)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  @@unique([tenantId, code])
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+model Order {
+  id           String      @id @default(uuid()) @db.Uuid
+  tenantId     String      @db.Uuid
+  number       Int
+  userId       String      @db.Uuid
+  status       OrderStatus @default(PENDING)
+  currency     String
+  subtotal     Int
+  discount     Int         @default(0)
+  taxAmount    Int         @default(0)
+  total        Int
+  couponId     String?     @db.Uuid
+  affiliateId  String?     @db.Uuid
+  buyerName    String
+  buyerEmail   String
+  buyerPhone   String?
+  buyerCountry String?
+  buyerState   String?
+  paidAt       DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user     User        @relation(fields: [userId], references: [id])
+  items    OrderItem[]
+  payments Payment[]
+  refunds  Refund[]
+  invoice  Invoice?
+
+  @@unique([tenantId, number])
+  @@index([tenantId, status, createdAt])
+  @@index([userId])
+}
+
+model OrderItem {
+  id         String @id @default(uuid()) @db.Uuid
+  orderId    String @db.Uuid
+  productId  String @db.Uuid
+  priceId    String @db.Uuid
+  title      String
+  quantity   Int    @default(1)
+  unitAmount Int
+  discount   Int    @default(0)
+  taxAmount  Int    @default(0)
+  total      Int
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+enum PaymentProvider {
+  RAZORPAY
+  STRIPE
+  FREE
+}
+
+enum PaymentStatus {
+  CREATED
+  AUTHORIZED
+  CAPTURED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+model Payment {
+  id                String          @id @default(uuid()) @db.Uuid
+  tenantId          String          @db.Uuid
+  orderId           String          @db.Uuid
+  provider          PaymentProvider
+  providerOrderId   String?
+  providerPaymentId String?
+  status            PaymentStatus   @default(CREATED)
+  amount            Int
+  currency          String
+  gatewayFee        Int             @default(0)
+  platformFee       Int             @default(0)
+  netAmount         Int             @default(0)
+  refundedAmount    Int             @default(0)
+  failureReason     String?
+  capturedAt        DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  refunds Refund[]
+
+  @@unique([provider, providerOrderId])
+  @@unique([provider, providerPaymentId])
+  @@index([tenantId, status])
+}
+
+enum RefundStatus {
+  REQUESTED
+  PENDING
+  PROCESSED
+  FAILED
+  REJECTED
+}
+
+model Refund {
+  id               String          @id @default(uuid()) @db.Uuid
+  tenantId         String          @db.Uuid
+  orderId          String          @db.Uuid
+  paymentId        String          @db.Uuid
+  provider         PaymentProvider
+  providerRefundId String?
+  amount           Int
+  status           RefundStatus    @default(PENDING)
+  reason           String?
+  requestedById    String?         @db.Uuid
+  processedAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerRefundId])
+  @@index([tenantId, status])
+}
+
+model Invoice {
+  id       String   @id @default(uuid()) @db.Uuid
+  tenantId String   @db.Uuid
+  orderId  String   @unique @db.Uuid
+  number   String
+  issuedAt DateTime @default(now())
+  seller   Json
+  buyer    Json
+  lines    Json
+  currency String
+  subtotal Int
+  cgst     Int      @default(0)
+  sgst     Int      @default(0)
+  igst     Int      @default(0)
+  total    Int
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, number])
+}
+
+enum PayoutStatus {
+  REQUESTED
+  APPROVED
+  PAID
+  REJECTED
+}
+
+model Payout {
+  id            String       @id @default(uuid()) @db.Uuid
+  tenantId      String       @db.Uuid
+  amount        Int
+  currency      String
+  status        PayoutStatus @default(REQUESTED)
+  requestedById String       @db.Uuid
+  reviewedById  String?      @db.Uuid
+  reference     String?
+  notes         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([tenantId, status])
+}
+
+enum LedgerType {
+  SALE
+  GATEWAY_FEE
+  PLATFORM_FEE
+  REFUND
+  PAYOUT
+  AFFILIATE_COMMISSION
+  ADJUSTMENT
+}
+
+/// Creator balance ledger (signed amounts, creator's perspective). Balance = SUM(amount).
+model LedgerEntry {
+  id        String     @id @default(uuid()) @db.Uuid
+  tenantId  String     @db.Uuid
+  type      LedgerType
+  amount    Int
+  currency  String
+  orderId   String?    @db.Uuid
+  paymentId String?    @db.Uuid
+  refundId  String?    @db.Uuid
+  payoutId  String?    @db.Uuid
+  memo      String?
+  createdAt DateTime   @default(now())
+
+  @@index([tenantId, createdAt])
+}
+
+/// Per-tenant monotonic counters (order numbers, invoice numbers)
+model Counter {
+  tenantId String @db.Uuid
+  key      String
+  value    Int    @default(0)
+
+  @@id([tenantId, key])
+}
+
+enum WebhookStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+model WebhookEvent {
+  id          String        @id @default(uuid()) @db.Uuid
+  provider    String
+  eventId     String
+  type        String
+  payload     Json
+  status      WebhookStatus @default(RECEIVED)
+  error       String?
+  attempts    Int           @default(0)
+  receivedAt  DateTime      @default(now())
+  processedAt DateTime?
+
+  @@unique([provider, eventId])
+  @@index([status])
+}
+
+enum CustomerSubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  GRACE
+  CANCELED
+  EXPIRED
+}
+
+model CustomerSubscription {
+  id                     String                     @id @default(uuid()) @db.Uuid
+  tenantId               String                     @db.Uuid
+  userId                 String                     @db.Uuid
+  productId              String                     @db.Uuid
+  priceId                String                     @db.Uuid
+  provider               PaymentProvider
+  providerSubscriptionId String?
+  status                 CustomerSubscriptionStatus @default(ACTIVE)
+  currentPeriodStart     DateTime
+  currentPeriodEnd       DateTime
+  cancelAtPeriodEnd      Boolean                    @default(false)
+  graceUntil             DateTime?
+  canceledAt             DateTime?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+
+  @@unique([provider, providerSubscriptionId])
+  @@index([tenantId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Workshops
+// ---------------------------------------------------------------------------
+
+enum WorkshopStatus {
+  DRAFT
+  PUBLISHED
+  CANCELED
+  COMPLETED
+}
+
+enum MeetingProvider {
+  ZOOM
+  GOOGLE_MEET
+  CUSTOM_LINK
+}
+
+model Workshop {
+  id               String          @id @default(uuid()) @db.Uuid
+  tenantId         String          @db.Uuid
+  productId        String?         @db.Uuid
+  title            String
+  description      String?
+  startsAt         DateTime
+  endsAt           DateTime
+  timezone         String          @default("Asia/Kolkata")
+  capacity         Int?
+  waitlistEnabled  Boolean         @default(true)
+  status           WorkshopStatus  @default(DRAFT)
+  meetingProvider  MeetingProvider @default(CUSTOM_LINK)
+  /// Only revealed to registered attendees by the API
+  meetingUrl       String?
+  meetingId        String?
+  recordingAssetId String?         @db.Uuid
+  replayEnabled    Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  registrations WorkshopRegistration[]
+
+  @@index([tenantId, startsAt])
+}
+
+enum RegistrationStatus {
+  REGISTERED
+  WAITLISTED
+  CANCELED
+}
+
+model WorkshopRegistration {
+  id         String             @id @default(uuid()) @db.Uuid
+  tenantId   String             @db.Uuid
+  workshopId String             @db.Uuid
+  userId     String             @db.Uuid
+  status     RegistrationStatus @default(REGISTERED)
+  attendedAt DateTime?
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+
+  workshop Workshop @relation(fields: [workshopId], references: [id], onDelete: Cascade)
+
+  @@unique([workshopId, userId])
+}
+
+// ---------------------------------------------------------------------------
+// Community
+// ---------------------------------------------------------------------------
+
+enum CommunityAccess {
+  FREE
+  PAID
+}
+
+model Community {
+  id          String          @id @default(uuid()) @db.Uuid
+  tenantId    String          @db.Uuid
+  name        String
+  slug        String
+  description String?
+  access      CommunityAccess @default(FREE)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  channels Channel[]
+
+  @@unique([tenantId, slug])
+}
+
+enum ChannelType {
+  FEED
+  ANNOUNCEMENT
+}
+
+model Channel {
+  id          String      @id @default(uuid()) @db.Uuid
+  tenantId    String      @db.Uuid
+  communityId String      @db.Uuid
+  name        String
+  type        ChannelType @default(FEED)
+  position    Int         @default(0)
+  createdAt   DateTime    @default(now())
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  posts     Post[]
+}
+
+enum ContentStatus {
+  VISIBLE
+  HIDDEN
+}
+
+model Post {
+  id        String        @id @default(uuid()) @db.Uuid
+  tenantId  String        @db.Uuid
+  channelId String        @db.Uuid
+  authorId  String        @db.Uuid
+  title     String?
+  body      String
+  pinned    Boolean       @default(false)
+  status    ContentStatus @default(VISIBLE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  deletedAt DateTime?
+
+  channel   Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  comments  Comment[]
+  reactions Reaction[]
+
+  @@index([channelId, pinned, createdAt])
+}
+
+model Comment {
+  id        String        @id @default(uuid()) @db.Uuid
+  tenantId  String        @db.Uuid
+  postId    String        @db.Uuid
+  authorId  String        @db.Uuid
+  body      String
+  status    ContentStatus @default(VISIBLE)
+  createdAt DateTime      @default(now())
+  deletedAt DateTime?
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+}
+
+model Reaction {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  postId    String   @db.Uuid
+  userId    String   @db.Uuid
+  emoji     String
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId, emoji])
+}
+
+model Conversation {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  isGroup   Boolean  @default(false)
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  participants ConversationParticipant[]
+  messages     Message[]
+}
+
+model ConversationParticipant {
+  conversationId String    @db.Uuid
+  userId         String    @db.Uuid
+  lastReadAt     DateTime?
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id             String   @id @default(uuid()) @db.Uuid
+  tenantId       String   @db.Uuid
+  conversationId String   @db.Uuid
+  senderId       String   @db.Uuid
+  body           String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+}
+
+enum ReportStatus {
+  OPEN
+  ACTIONED
+  DISMISSED
+}
+
+model ContentReport {
+  id         String       @id @default(uuid()) @db.Uuid
+  tenantId   String       @db.Uuid
+  reporterId String       @db.Uuid
+  entityType String
+  entityId   String       @db.Uuid
+  reason     String
+  status     ReportStatus @default(OPEN)
+  createdAt  DateTime     @default(now())
+  resolvedAt DateTime?
+
+  @@index([tenantId, status])
+}
+
+model UserBlock {
+  tenantId  String   @db.Uuid
+  blockerId String   @db.Uuid
+  blockedId String   @db.Uuid
+  createdAt DateTime @default(now())
+
+  @@id([tenantId, blockerId, blockedId])
+}
+
+// ---------------------------------------------------------------------------
+// Consultations
+// ---------------------------------------------------------------------------
+
+model ConsultationOffering {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  hostId      String   @db.Uuid
+  productId   String?  @db.Uuid
+  title       String
+  description String?
+  durationMin Int
+  bufferMin   Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bookings Booking[]
+}
+
+/// Weekly availability: weekday 0=Sunday, minutes from midnight in `timezone`
+model AvailabilityRule {
+  id          String @id @default(uuid()) @db.Uuid
+  tenantId    String @db.Uuid
+  hostId      String @db.Uuid
+  weekday     Int
+  startMinute Int
+  endMinute   Int
+  timezone    String @default("Asia/Kolkata")
+
+  @@index([tenantId, hostId])
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  CANCELED
+  COMPLETED
+  NO_SHOW
+}
+
+/// Overlapping active bookings for a host are rejected by the exclusion
+/// constraint `booking_no_overlap` (see migration SQL).
+model Booking {
+  id         String        @id @default(uuid()) @db.Uuid
+  tenantId   String        @db.Uuid
+  offeringId String        @db.Uuid
+  hostId     String        @db.Uuid
+  customerId String        @db.Uuid
+  startsAt   DateTime
+  endsAt     DateTime
+  status     BookingStatus @default(CONFIRMED)
+  orderId    String?       @db.Uuid
+  meetingUrl String?
+  notes      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  offering ConsultationOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, hostId, startsAt])
+}
+
+// ---------------------------------------------------------------------------
+// CRM & marketing automation
+// ---------------------------------------------------------------------------
+
+model Contact {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @db.Uuid
+  userId          String?   @db.Uuid
+  email           String
+  name            String?
+  phone           String?
+  source          String?
+  customFields    Json      @default("{}")
+  consentEmail    Boolean   @default(false)
+  consentWhatsapp Boolean   @default(false)
+  consentAt       DateTime?
+  unsubscribedAt  DateTime?
+  lastActivityAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  tags ContactTag[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId, createdAt])
+}
+
+model Tag {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @db.Uuid
+  name     String
+
+  contacts ContactTag[]
+
+  @@unique([tenantId, name])
+}
+
+model ContactTag {
+  contactId String @db.Uuid
+  tagId     String @db.Uuid
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+}
+
+enum MessageChannel {
+  EMAIL
+  WHATSAPP
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELED
+}
+
+model Campaign {
+  id          String         @id @default(uuid()) @db.Uuid
+  tenantId    String         @db.Uuid
+  channel     MessageChannel
+  name        String
+  subject     String?
+  body        String
+  /// Filter: {"tags":["vip"]} – empty = all consenting contacts
+  audience    Json           @default("{}")
+  status      CampaignStatus @default(DRAFT)
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@index([tenantId, status])
+}
+
+enum DeliveryStatus {
+  QUEUED
+  SENT
+  FAILED
+  SKIPPED
+}
+
+model MessageLog {
+  id                String         @id @default(uuid()) @db.Uuid
+  tenantId          String?        @db.Uuid
+  campaignId        String?        @db.Uuid
+  contactId         String?        @db.Uuid
+  channel           MessageChannel
+  to                String
+  subject           String?
+  status            DeliveryStatus
+  error             String?
+  providerMessageId String?
+  createdAt         DateTime       @default(now())
+
+  @@index([tenantId, createdAt])
+  @@index([campaignId])
+}
+
+model Suppression {
+  tenantId  String         @db.Uuid
+  channel   MessageChannel
+  address   String
+  reason    String?
+  createdAt DateTime       @default(now())
+
+  @@id([tenantId, channel, address])
+}
+
+enum WorkflowStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+}
+
+model AutomationWorkflow {
+  id        String         @id @default(uuid()) @db.Uuid
+  tenantId  String         @db.Uuid
+  name      String
+  /// {"event":"order.paid","productId":"..."}
+  trigger   Json
+  /// [{"type":"delay","minutes":60},{"type":"send_email","subject":"..","body":".."},{"type":"add_tag","tag":"buyer"}]
+  steps     Json
+  status    WorkflowStatus @default(DRAFT)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  executions AutomationExecution[]
+}
+
+enum ExecutionStatus {
+  RUNNING
+  WAITING
+  COMPLETED
+  FAILED
+}
+
+model AutomationExecution {
+  id             String          @id @default(uuid()) @db.Uuid
+  tenantId       String          @db.Uuid
+  workflowId     String          @db.Uuid
+  contactId      String          @db.Uuid
+  idempotencyKey String          @unique
+  status         ExecutionStatus @default(RUNNING)
+  stepIndex      Int             @default(0)
+  nextRunAt      DateTime?
+  attempts       Int             @default(0)
+  history        Json            @default("[]")
+  lastError      String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  workflow AutomationWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextRunAt])
+}
+
+// ---------------------------------------------------------------------------
+// Affiliates
+// ---------------------------------------------------------------------------
+
+enum AffiliateStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+model Affiliate {
+  id            String          @id @default(uuid()) @db.Uuid
+  tenantId      String          @db.Uuid
+  userId        String          @db.Uuid
+  code          String
+  status        AffiliateStatus @default(PENDING)
+  commissionBps Int             @default(1000)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  clicks      ReferralClick[]
+  commissions Commission[]
+
+  @@unique([tenantId, code])
+  @@unique([tenantId, userId])
+}
+
+model AffiliateProductRule {
+  tenantId      String @db.Uuid
+  productId     String @db.Uuid
+  commissionBps Int
+
+  @@id([tenantId, productId])
+}
+
+model ReferralClick {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  affiliateId String   @db.Uuid
+  visitorId   String
+  landingPath String?
+  createdAt   DateTime @default(now())
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, visitorId, createdAt])
+}
+
+enum CommissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+  REVERSED
+}
+
+model Commission {
+  id          String           @id @default(uuid()) @db.Uuid
+  tenantId    String           @db.Uuid
+  affiliateId String           @db.Uuid
+  orderId     String           @unique @db.Uuid
+  amount      Int
+  currency    String
+  status      CommissionStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Gamification
+// ---------------------------------------------------------------------------
+
+/// Idempotent: sourceKey (e.g. "lesson:<id>") is unique per user per tenant
+model PointsLedger {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  userId    String   @db.Uuid
+  points    Int
+  reason    String
+  sourceKey String
+  createdAt DateTime @default(now())
+
+  @@unique([tenantId, userId, sourceKey])
+  @@index([tenantId, createdAt])
+}
+
+model Badge {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  name        String
+  description String?
+  icon        String?
+  /// {"type":"points_at_least","value":100} | {"type":"courses_completed","value":1}
+  rule        Json?
+  createdAt   DateTime @default(now())
+
+  awards Achievement[]
+}
+
+model Achievement {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  badgeId   String   @db.Uuid
+  userId    String   @db.Uuid
+  awardedAt DateTime @default(now())
+
+  badge Badge @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@unique([badgeId, userId])
+}
+
+model Challenge {
+  id          String   @id @default(uuid()) @db.Uuid
+  tenantId    String   @db.Uuid
+  title       String
+  description String?
+  points      Int      @default(10)
+  startsAt    DateTime
+  endsAt      DateTime
+  createdAt   DateTime @default(now())
+}
+
+model Habit {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  userId    String   @db.Uuid
+  title     String
+  createdAt DateTime @default(now())
+
+  logs HabitLog[]
+}
+
+model HabitLog {
+  habitId String @db.Uuid
+  day     String
+
+  habit Habit @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@id([habitId, day])
+}
+
+// ---------------------------------------------------------------------------
+// Landing pages, themes, domains
+// ---------------------------------------------------------------------------
+
+enum PageStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model LandingPage {
+  id                 String     @id @default(uuid()) @db.Uuid
+  tenantId           String     @db.Uuid
+  slug               String
+  title              String
+  status             PageStatus @default(DRAFT)
+  /// Working copy – validated against the block schema (src/modules/pages/blocks.ts)
+  draft              Json
+  publishedVersionId String?    @db.Uuid
+  seo                Json       @default("{}")
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  deletedAt          DateTime?
+
+  versions PageVersion[]
+
+  @@unique([tenantId, slug])
+}
+
+model PageVersion {
+  id          String   @id @default(uuid()) @db.Uuid
+  pageId      String   @db.Uuid
+  version     Int
+  content     Json
+  createdById String?  @db.Uuid
+  createdAt   DateTime @default(now())
+
+  page LandingPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, version])
+}
+
+enum DomainStatus {
+  PENDING
+  VERIFIED
+  FAILED
+}
+
+model CustomDomain {
+  id                String       @id @default(uuid()) @db.Uuid
+  tenantId          String       @db.Uuid
+  hostname          String       @unique
+  verificationToken String
+  status            DomainStatus @default(PENDING)
+  verifiedAt        DateTime?
+  lastCheckedAt     DateTime?
+  createdAt         DateTime     @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model Theme {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  name      String
+  tokens    Json
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Platform operations: notifications, support, AI, integrations, jobs, CMS
+// ---------------------------------------------------------------------------
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  tenantId  String?   @db.Uuid
+  userId    String    @db.Uuid
+  type      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+}
+
+enum TicketStatus {
+  OPEN
+  PENDING
+  RESOLVED
+  CLOSED
+}
+
+model SupportTicket {
+  id        String       @id @default(uuid()) @db.Uuid
+  tenantId  String?      @db.Uuid
+  userId    String       @db.Uuid
+  subject   String
+  status    TicketStatus @default(OPEN)
+  priority  String       @default("normal")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  messages SupportMessage[]
+}
+
+model SupportMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  ticketId  String   @db.Uuid
+  authorId  String   @db.Uuid
+  body      String
+  internal  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+}
+
+model AiUsage {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @db.Uuid
+  userId       String   @db.Uuid
+  feature      String
+  provider     String
+  model        String
+  inputTokens  Int
+  outputTokens Int
+  /// Estimated provider cost in micro-USD
+  costMicros   Int      @default(0)
+  credits      Int
+  createdAt    DateTime @default(now())
+
+  @@index([tenantId, createdAt])
+}
+
+model AiCreditLedger {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @db.Uuid
+  delta     Int
+  reason    String
+  usageId   String?  @db.Uuid
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+enum IntegrationKind {
+  RAZORPAY
+  STRIPE
+  SMTP
+  RESEND
+  WHATSAPP
+  ZOOM
+  AI
+  S3
+  MUX
+}
+
+/// Provider credentials. Non-secret settings in `config`; secrets AES-256-GCM
+/// encrypted in `secretsEnc` with INTEGRATION_ENCRYPTION_KEY. `scopeKey` is the
+/// tenant id or "platform".
+model ProviderIntegration {
+  id          String          @id @default(uuid()) @db.Uuid
+  scopeKey    String
+  kind        IntegrationKind
+  enabled     Boolean         @default(true)
+  config      Json            @default("{}")
+  secretsEnc  String?
+  updatedById String?         @db.Uuid
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([scopeKey, kind])
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model BackgroundJob {
+  id             String    @id @default(uuid()) @db.Uuid
+  name           String
+  payload        Json
+  status         JobStatus @default(QUEUED)
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(5)
+  runAt          DateTime  @default(now())
+  lockedAt       DateTime?
+  lastError      String?
+  idempotencyKey String?   @unique
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, runAt])
+}
+
+enum CmsStatus {
+  DRAFT
+  PUBLISHED
+}
+
+/// Marketing-site page. `sections` is validated against the CMS block schema.
+model CmsPage {
+  id          String    @id @default(uuid()) @db.Uuid
+  slug        String    @unique
+  title       String
+  status      CmsStatus @default(DRAFT)
+  sections    Json      @default("[]")
+  seo         Json      @default("{}")
+  showInNav   Boolean   @default(false)
+  navOrder    Int       @default(0)
+  updatedById String?   @db.Uuid
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+/// Global site settings: navigation, footer, brand, analytics ids
+model SiteSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+model Announcement {
+  id        String    @id @default(uuid()) @db.Uuid
+  title     String
+  body      String
+  audience  String    @default("creators")
+  startsAt  DateTime  @default(now())
+  endsAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+/// Explicit, time-boxed, read-only support access granted by a workspace owner.
+/// Platform staff cannot enter a workspace without one (no silent impersonation).
+model SupportAccessGrant {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @db.Uuid
+  grantedById String    @db.Uuid
+  reason      String?
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([tenantId, expiresAt])
+}
