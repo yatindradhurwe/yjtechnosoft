@@ -11,7 +11,7 @@ export const asset = (p) => {
   if (p.startsWith('/uploads/')) p = `/api${p}`;
   if (/^(https?:)?\/\//.test(p) || p.startsWith('data:')) return p;
   // private uploads need the staff token
-  if (/^\/api\/uploads\/(resumes|documents|receipts|vault)\//.test(p)) return `${API_BASE}${p}?token=${getToken() || ''}`;
+  if (/^\/api\/uploads\/(resumes|documents|receipts|vault|attendance)\//.test(p)) return `${API_BASE}${p}?token=${getToken() || ''}`;
   return `${API_BASE}${p}`;
 };
 

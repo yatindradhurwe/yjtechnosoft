@@ -1,9 +1,12 @@
 const asyncHandler = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 class HttpError extends Error {
-  constructor(status, message) {
+  /** code: optional machine-readable reason (e.g. OUTSIDE_GEOFENCE), details: extra data for the client */
+  constructor(status, message, code, details) {
     super(message);
     this.status = status;
+    if (code) this.code = code;
+    if (details) this.details = details;
   }
 }
 

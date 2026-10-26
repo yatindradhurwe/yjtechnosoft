@@ -3,10 +3,11 @@ const bcrypt = require('bcryptjs');
 const { query, one, transaction } = require('../config/db');
 const { authenticate, authorize, isStaffManager } = require('../middleware/auth');
 const { asyncHandler, HttpError } = require('../middleware/error');
-const { pick, toDateStr, toDateTimeStr, round2, formatDate } = require('../utils/helpers');
+const { pick, toDateStr, round2, formatDate } = require('../utils/helpers');
 const { getSettings } = require('../utils/settings');
 const { sendEmail, notifyAdmins } = require('../services/notify');
 const { notifyRoles, notifyEmployee, fire } = require('../services/push');
+const attendance = require('../services/attendance');
 
 const router = express.Router();
 router.use(authenticate);
@@ -90,6 +91,7 @@ async function upsertLogin(q, empId, { email, name, phone, password, role = 'emp
     const data = { email, name, phone };
     if (password) data.password_hash = await bcrypt.hash(password, 10);
     await q('UPDATE users SET ? WHERE id = ?', [data, existing.id]);
+    if (password) await q('UPDATE mobile_sessions SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL', [existing.id]);
     return existing.id;
   }
   if (!password) throw new HttpError(400, 'Password is required to create a login');
@@ -161,52 +163,45 @@ router.delete(
   })
 );
 
-// ============================================================ ATTENDANCE
-function clientIp(req) {
-  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
-}
+// Mobile app devices signed in as this employee (HR can sign out a lost phone)
+router.get(
+  '/employees/:id/mobile-sessions',
+  authorize('hr'),
+  asyncHandler(async (req, res) => {
+    const data = await query(
+      `SELECT s.id, s.device_name, s.platform, s.app_version, s.ip, s.created_at, s.last_used_at
+       FROM mobile_sessions s JOIN users u ON u.id = s.user_id
+       WHERE u.employee_id = ? AND s.revoked_at IS NULL AND s.expires_at > NOW() ORDER BY s.last_used_at DESC`,
+      [req.params.id]
+    );
+    res.json({ data });
+  })
+);
 
+router.delete(
+  '/employees/:id/mobile-sessions/:sessionId?',
+  authorize('hr'),
+  asyncHandler(async (req, res) => {
+    const params = [req.params.id];
+    let extra = '';
+    if (req.params.sessionId) { extra = ' AND s.id = ?'; params.push(req.params.sessionId); }
+    const r = await query(`UPDATE mobile_sessions s JOIN users u ON u.id = s.user_id SET s.revoked_at = NOW() WHERE u.employee_id = ? AND s.revoked_at IS NULL${extra}`, params);
+    res.json({ message: `${r.affectedRows} device(s) signed out` });
+  })
+);
+
+// ============================================================ ATTENDANCE
 router.get(
   '/attendance/today',
-  asyncHandler(async (req, res) => {
-    const empId = requireEmployee(req);
-    const row = await one('SELECT * FROM attendance WHERE employee_id = ? AND date = ?', [empId, toDateStr()]);
-    const emp = await one('SELECT shift_start, shift_end FROM employees WHERE id = ?', [empId]);
-    res.json({ attendance: row, shift: emp });
-  })
+  asyncHandler(async (req, res) => res.json(await attendance.todayStatus(requireEmployee(req))))
 );
 
 router.post(
   '/attendance/check-in',
   asyncHandler(async (req, res) => {
     const empId = requireEmployee(req);
-    const s = await getSettings();
-    const ip = clientIp(req);
-    const whitelist = (s.office_ip_whitelist || '').split(',').map((x) => x.trim()).filter(Boolean);
-    if (whitelist.length && !whitelist.includes(ip) && !req.body.wfh) {
-      throw new HttpError(403, `Check-in is allowed only from the office network (your IP: ${ip}). Choose "Work from home" if applicable.`);
-    }
-    const today = toDateStr();
-    const existing = await one('SELECT * FROM attendance WHERE employee_id = ? AND date = ?', [empId, today]);
-    if (existing && existing.check_in) throw new HttpError(400, 'You have already checked in today');
-    const emp = await one('SELECT shift_start FROM employees WHERE id = ?', [empId]);
-    const now = new Date();
-    const [h, m] = String(emp.shift_start || s.office_start_time || '10:00').split(':').map(Number);
-    const grace = Number(s.attendance_grace_minutes || 15);
-    const late = now.getHours() * 60 + now.getMinutes() > h * 60 + m + grace;
-    const status = req.body.wfh ? 'wfh' : late ? 'late' : 'present';
-    const data = {
-      employee_id: empId,
-      date: today,
-      check_in: toDateTimeStr(now),
-      status,
-      check_in_ip: ip,
-      check_in_location: req.body.location || null,
-      notes: req.body.notes || null,
-    };
-    if (existing) await query('UPDATE attendance SET ? WHERE id = ?', [data, existing.id]);
-    else await query('INSERT INTO attendance SET ?', [data]);
-    res.json({ message: late ? 'Checked in (late)' : 'Checked in successfully', attendance: await one('SELECT * FROM attendance WHERE employee_id = ? AND date = ?', [empId, today]) });
+    const { message, attendance: row, geofence } = await attendance.checkIn(empId, { ...pick(req.body, ['wfh', 'notes', 'project_id', 'latitude', 'longitude', 'accuracy', 'location']), source: 'web', ip: attendance.clientIp(req) });
+    res.json({ message, attendance: row, geofence });
   })
 );
 
@@ -214,19 +209,8 @@ router.post(
   '/attendance/check-out',
   asyncHandler(async (req, res) => {
     const empId = requireEmployee(req);
-    const s = await getSettings();
-    const today = toDateStr();
-    const row = await one('SELECT * FROM attendance WHERE employee_id = ? AND date = ?', [empId, today]);
-    if (!row || !row.check_in) throw new HttpError(400, 'You have not checked in today');
-    if (row.check_out) throw new HttpError(400, 'You have already checked out today');
-    const now = new Date();
-    const minutes = Math.max(0, Math.round((now - new Date(row.check_in.replace(' ', 'T'))) / 60000));
-    let status = row.status;
-    if (minutes < Number(s.half_day_hours || 4) * 60 && status !== 'wfh') status = 'half_day';
-    await query('UPDATE attendance SET check_out = ?, work_minutes = ?, status = ?, check_out_location = ? WHERE id = ?', [
-      toDateTimeStr(now), minutes, status, req.body.location || null, row.id,
-    ]);
-    res.json({ message: 'Checked out. Have a great evening!', attendance: await one('SELECT * FROM attendance WHERE id = ?', [row.id]) });
+    const { message, attendance: row, geofence } = await attendance.checkOut(empId, pick(req.body, ['latitude', 'longitude', 'accuracy', 'location']));
+    res.json({ message, attendance: row, geofence });
   })
 );
 
@@ -249,10 +233,13 @@ router.get(
     const date = req.query.date || toDateStr();
     const rows = await query(
       `SELECT e.id AS employee_id, e.name, e.emp_code, e.photo, e.shift_start, d.name AS department_name,
-              a.id, a.check_in, a.check_out, a.work_minutes, a.status, a.notes, a.check_in_ip, a.check_in_location
+              a.id, a.check_in, a.check_out, a.work_minutes, a.status, a.notes, a.check_in_ip, a.check_in_location,
+              a.check_out_location, a.source, a.project_id, p.name AS project_name, a.check_in_geofence, a.check_in_distance,
+              a.check_out_geofence, a.check_out_distance, a.check_in_accuracy, a.check_in_photo
        FROM employees e
        LEFT JOIN departments d ON d.id = e.department_id
        LEFT JOIN attendance a ON a.employee_id = e.id AND a.date = ?
+       LEFT JOIN projects p ON p.id = a.project_id
        WHERE e.status IN ('active','on_notice') AND (e.joining_date IS NULL OR e.joining_date <= ?)
        ORDER BY e.name`,
       [date, date]
@@ -376,29 +363,37 @@ router.get(
   })
 );
 
+/** Validates and saves a leave request, then notifies HR. Shared with the mobile API. */
+async function createLeaveRequest(empId, body, actorUserId) {
+  const { leave_type_id, from_date, to_date, reason, half_day } = body;
+  if (!leave_type_id || !from_date) throw new HttpError(400, 'Leave type and dates are required', 'VALIDATION_ERROR');
+  const to = to_date || from_date;
+  if (to < from_date) throw new HttpError(400, 'End date cannot be before start date', 'VALIDATION_ERROR');
+  const type = await one("SELECT id FROM leave_types WHERE id = ? AND status = 'active'", [leave_type_id]);
+  if (!type) throw new HttpError(400, 'Invalid leave type', 'VALIDATION_ERROR');
+  const overlap = await one(
+    "SELECT id FROM leave_requests WHERE employee_id = ? AND status IN ('pending','approved') AND from_date <= ? AND to_date >= ?",
+    [empId, to, from_date]
+  );
+  if (overlap) throw new HttpError(409, 'You already have a leave request for these dates', 'LEAVE_OVERLAP');
+  const halfDay = half_day === true || half_day === 1 || half_day === '1' || half_day === 'true';
+  const days = await countLeaveDays(from_date, to, halfDay);
+  if (!days) throw new HttpError(400, 'Selected dates fall on holidays / weekly offs', 'NO_WORKING_DAYS');
+  const r = await query('INSERT INTO leave_requests SET ?', [{ employee_id: empId, leave_type_id, from_date, to_date: to, half_day: halfDay ? 1 : 0, days, reason: reason || null }]);
+  const emp = await one('SELECT name FROM employees WHERE id = ?', [empId]);
+  fire(notifyRoles(['hr'], { title: `🗓️ Leave request – ${emp.name}`, body: `${days} day(s): ${formatDate(from_date)} to ${formatDate(to)}`, link: '/admin/leaves', type: 'leave' }, { excludeUserId: actorUserId }));
+  notifyAdmins(
+    `Leave request – ${emp.name}`,
+    `<p><b>${emp.name}</b> applied for ${days} day(s) leave from ${formatDate(from_date)} to ${formatDate(to)}.</p><p>Reason: ${reason || '-'}</p>`
+  ).catch(() => {});
+  return { id: r.insertId, days };
+}
+
 router.post(
   '/leaves',
   asyncHandler(async (req, res) => {
     const empId = req.body.employee_id && isStaffManager(req.user) ? req.body.employee_id : requireEmployee(req);
-    const { leave_type_id, from_date, to_date, reason, half_day } = req.body;
-    if (!leave_type_id || !from_date) throw new HttpError(400, 'Leave type and dates are required');
-    const to = to_date || from_date;
-    if (to < from_date) throw new HttpError(400, 'End date cannot be before start date');
-    const overlap = await one(
-      "SELECT id FROM leave_requests WHERE employee_id = ? AND status IN ('pending','approved') AND from_date <= ? AND to_date >= ?",
-      [empId, to, from_date]
-    );
-    if (overlap) throw new HttpError(400, 'You already have a leave request for these dates');
-    const days = await countLeaveDays(from_date, to, half_day);
-    if (!days) throw new HttpError(400, 'Selected dates fall on holidays / weekly offs');
-    const r = await query('INSERT INTO leave_requests SET ?', [{ employee_id: empId, leave_type_id, from_date, to_date: to, half_day: half_day ? 1 : 0, days, reason }]);
-    const emp = await one('SELECT name FROM employees WHERE id = ?', [empId]);
-    fire(notifyRoles(['hr'], { title: `🗓️ Leave request – ${emp.name}`, body: `${days} day(s): ${formatDate(from_date)} to ${formatDate(to)}`, link: '/admin/leaves', type: 'leave' }, { excludeUserId: req.user.id }));
-    notifyAdmins(
-      `Leave request – ${emp.name}`,
-      `<p><b>${emp.name}</b> applied for ${days} day(s) leave from ${formatDate(from_date)} to ${formatDate(to)}.</p><p>Reason: ${reason || '-'}</p>`
-    ).catch(() => {});
-    res.status(201).json({ id: r.insertId, days });
+    res.status(201).json(await createLeaveRequest(empId, req.body, req.user.id));
   })
 );
 
@@ -596,3 +591,5 @@ router.delete(
 
 module.exports = router;
 module.exports.leaveBalance = leaveBalance;
+module.exports.createLeaveRequest = createLeaveRequest;
+module.exports.countLeaveDays = countLeaveDays;

@@ -13,6 +13,8 @@ async function authenticate(req, res, next) {
   if (!token) return res.status(401).json({ message: 'Authentication required' });
   try {
     const payload = jwt.verify(token, SECRET());
+    // mobile app tokens only work on /api/mobile/v1 (where device sessions can be revoked)
+    if (payload.aud === 'mobile') return res.status(401).json({ message: 'Use the mobile API for this token' });
     const user = await one(
       'SELECT id, name, email, phone, role, employee_id, avatar, status FROM users WHERE id = ?',
       [payload.id]
@@ -36,4 +38,4 @@ function authorize(...roles) {
 
 const isStaffManager = (user) => ['admin', 'hr'].includes(user.role);
 
-module.exports = { signToken, authenticate, authorize, isStaffManager };
+module.exports = { SECRET, signToken, authenticate, authorize, isStaffManager };

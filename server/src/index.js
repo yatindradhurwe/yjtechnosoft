@@ -37,6 +37,8 @@ app.get('/api/health', async (req, res) => {
     res.status(503).json({ ok: false, database: 'error', error: `${e.code || ''} ${e.message}`.trim(), hint: 'Check DB_HOST, DB_NAME, DB_USER, DB_PASSWORD (or DATABASE_URL) and that the user has ALL PRIVILEGES on the database.' });
   }
 });
+// Employee mobile app (Flutter) – see docs/mobile-api.md
+app.use('/api/mobile/v1', require('./routes/mobile'));
 app.use('/api/public', require('./routes/public'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/dashboard', require('./routes/dashboard'));

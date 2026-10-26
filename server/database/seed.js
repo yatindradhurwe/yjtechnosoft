@@ -80,6 +80,14 @@ const SETTINGS = {
   salary_hra_pct: '20',
   payroll_missing_as_absent: '1',
   office_ip_whitelist: '',
+  // geofenced attendance: off | flag (allow, but mark outside) | enforce (block outside)
+  geofence_mode: 'off',
+  office_latitude: '',
+  office_longitude: '',
+  office_geofence_radius: '200',
+  geofence_max_accuracy: '100',
+  geofence_allow_wfh: '1',
+  attendance_selfie_required: '0',
   // notifications
   notify_admin_emails: 'yjtechnosoft@gmail.com',
   mail_from_name: 'YJTechnosoft',
@@ -417,6 +425,22 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
   await addColumn('invoices', 'project_id', 'INT NULL');
   await addColumn('invoices', 'viewed_at', 'DATETIME NULL');
   await addColumn('contracts', 'viewed_at', 'DATETIME NULL');
+  // project sites & geofenced attendance (mobile app)
+  await addColumn('projects', 'site_address', 'VARCHAR(255) NULL');
+  await addColumn('projects', 'latitude', 'DECIMAL(10,7) NULL');
+  await addColumn('projects', 'longitude', 'DECIMAL(10,7) NULL');
+  await addColumn('projects', 'geofence_radius', 'INT DEFAULT 200');
+  await addColumn('projects', 'geofence_enabled', 'TINYINT(1) DEFAULT 0');
+  for (const [col, def] of [
+    ['project_id', 'INT NULL'], ['source', 'VARCHAR(20) NULL'],
+    ['check_in_lat', 'DECIMAL(10,7) NULL'], ['check_in_lng', 'DECIMAL(10,7) NULL'], ['check_in_accuracy', 'INT NULL'],
+    ['check_in_distance', 'INT NULL'], ['check_in_geofence', 'VARCHAR(20) NULL'], ['check_in_photo', 'VARCHAR(255) NULL'],
+    ['check_out_lat', 'DECIMAL(10,7) NULL'], ['check_out_lng', 'DECIMAL(10,7) NULL'], ['check_out_accuracy', 'INT NULL'],
+    ['check_out_distance', 'INT NULL'], ['check_out_geofence', 'VARCHAR(20) NULL'], ['device_info', 'VARCHAR(255) NULL'],
+  ]) await addColumn('attendance', col, def);
+  // check-ins made before the source column existed came from the web panel (manual HR marks have no IP)
+  await q("UPDATE attendance SET source = 'web' WHERE source IS NULL AND check_in_ip IS NOT NULL AND check_in IS NOT NULL");
+  await addColumn('daily_reports', 'project_id', 'INT NULL');
   // logo/favicon now ship with the website build (works when site & API are served separately)
   await q("UPDATE settings SET `value` = '/logo.png' WHERE `key` = 'logo' AND `value` = '/assets/logo.png'");
   await q("UPDATE settings SET `value` = '/favicon.png' WHERE `key` = 'favicon' AND `value` = '/assets/logo-icon.png'");

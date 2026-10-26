@@ -139,18 +139,23 @@ router.delete(
   })
 );
 
+/** Saves a task comment and notifies the other side (assignee / assigner). Shared with the mobile API. */
+async function addTaskComment(t, user, comment) {
+  if (!comment || !String(comment).trim()) throw new HttpError(400, 'Comment is required', 'VALIDATION_ERROR');
+  const r = await query('INSERT INTO task_comments SET ?', [{ task_id: t.id, user_id: user.id, comment }]);
+  const assignee = t.assigned_to ? await one('SELECT id FROM users WHERE employee_id = ?', [t.assigned_to]) : null;
+  const targets = [assignee && assignee.id, t.assigned_by].filter((id) => id && id !== user.id);
+  fire(notifyUsers(targets, { title: `💬 ${user.name} commented on “${t.title}”`, body: String(comment).slice(0, 140), link: assignee && targets.includes(assignee.id) ? '/admin/my/tasks' : '/admin/tasks', type: 'task' }));
+  return r.insertId;
+}
+
 router.post(
   '/tasks/:id/comments',
   asyncHandler(async (req, res) => {
     const t = await one('SELECT * FROM tasks WHERE id = ?', [req.params.id]);
     if (!t) throw new HttpError(404, 'Task not found');
     if (!isStaffManager(req.user) && t.assigned_to !== req.user.employee_id) throw new HttpError(403, 'Not allowed');
-    if (!req.body.comment) throw new HttpError(400, 'Comment is required');
-    await query('INSERT INTO task_comments SET ?', [{ task_id: t.id, user_id: req.user.id, comment: req.body.comment }]);
-    // notify the other side of the conversation
-    const assignee = t.assigned_to ? await one('SELECT id FROM users WHERE employee_id = ?', [t.assigned_to]) : null;
-    const targets = [assignee && assignee.id, t.assigned_by].filter((id) => id && id !== req.user.id);
-    fire(notifyUsers(targets, { title: `💬 ${req.user.name} commented on “${t.title}”`, body: String(req.body.comment).slice(0, 140), link: assignee && targets.includes(assignee.id) ? '/admin/my/tasks' : '/admin/tasks', type: 'task' }));
+    await addTaskComment(t, req.user, req.body.comment);
     res.status(201).json({ message: 'Comment added' });
   })
 );
@@ -163,19 +168,81 @@ router.get(
     const p = await one('SELECT p.*, c.name AS client_name, c.phone AS client_phone, c.email AS client_email FROM projects p LEFT JOIN clients c ON c.id = p.client_id WHERE p.id = ?', [req.params.id]);
     if (!p) throw new HttpError(404, 'Project not found');
     const isBilling = ['admin', 'accounts'].includes(req.user.role);
-    const [tasks, team, contracts, documents, invoices, quotations] = await Promise.all([
+    const [tasks, team, members, siteAttendance, contracts, documents, invoices, quotations] = await Promise.all([
       query(`SELECT ${TASK_SELECT} FROM ${TASK_FROM} WHERE t.project_id = ? ORDER BY FIELD(t.status,'in_progress','todo','review','blocked','done'), t.due_date`, [p.id]),
       query('SELECT DISTINCT e.id, e.name, e.photo, e.emp_code FROM tasks t JOIN employees e ON e.id = t.assigned_to WHERE t.project_id = ?', [p.id]),
+      projectMembers(p.id),
+      query(
+        `SELECT a.employee_id, e.name, e.emp_code, a.check_in, a.check_out, a.status, a.source, a.check_in_geofence, a.check_in_distance
+         FROM attendance a JOIN employees e ON e.id = a.employee_id WHERE a.project_id = ? AND a.date = CURDATE() ORDER BY a.check_in`,
+        [p.id]
+      ),
       isBilling ? query('SELECT id, contract_no, title, status, agreement_date, end_date, contract_value FROM contracts WHERE project_id = ? ORDER BY id DESC', [p.id]) : [],
       query('SELECT id, title, category, file, file_name, created_at, expiry_date FROM vault_documents WHERE project_id = ? ORDER BY id DESC', [p.id]),
       isBilling ? query('SELECT id, invoice_no, invoice_date, total, amount_paid, status FROM invoices WHERE project_id = ? ORDER BY id DESC', [p.id]) : [],
       isBilling ? query('SELECT id, quote_no, quote_date, total, status FROM quotations WHERE project_id = ? ORDER BY id DESC', [p.id]) : [],
     ]);
-    res.json({ ...p, tasks, team, contracts, documents, invoices, quotations });
+    res.json({ ...p, tasks, team, members, site_attendance: siteAttendance, contracts, documents, invoices, quotations });
+  })
+);
+
+// ============================================================ PROJECT MEMBERS
+// Members can check in at the project's geofence and see the project in the mobile app
+function projectMembers(projectId) {
+  return query(
+    `SELECT m.id, m.employee_id, m.role, m.created_at, e.name, e.emp_code, e.photo, e.phone, g.name AS designation_name
+     FROM project_members m JOIN employees e ON e.id = m.employee_id LEFT JOIN designations g ON g.id = e.designation_id
+     WHERE m.project_id = ? ORDER BY e.name`,
+    [projectId]
+  );
+}
+
+router.get(
+  '/projects/:id/members',
+  authorize('hr'),
+  asyncHandler(async (req, res) => res.json({ data: await projectMembers(req.params.id) }))
+);
+
+router.post(
+  '/projects/:id/members',
+  authorize('hr'),
+  asyncHandler(async (req, res) => {
+    const p = await one('SELECT id FROM projects WHERE id = ?', [req.params.id]);
+    if (!p) throw new HttpError(404, 'Project not found');
+    const ids = (Array.isArray(req.body.employee_ids) ? req.body.employee_ids : [req.body.employee_id]).map(Number).filter(Boolean);
+    if (!ids.length) throw new HttpError(400, 'Choose at least one employee');
+    await query('INSERT INTO project_members (project_id, employee_id, role) VALUES ? ON DUPLICATE KEY UPDATE role = COALESCE(VALUES(role), role)', [ids.map((id) => [p.id, id, req.body.role || null])]);
+    res.status(201).json({ data: await projectMembers(p.id) });
+  })
+);
+
+router.delete(
+  '/projects/:id/members/:employeeId',
+  authorize('hr'),
+  asyncHandler(async (req, res) => {
+    await query('DELETE FROM project_members WHERE project_id = ? AND employee_id = ?', [req.params.id, req.params.employeeId]);
+    res.json({ data: await projectMembers(req.params.id) });
   })
 );
 
 // ============================================================ DAILY REPORTS
+/** Insert or update the employee's report for a day. Shared with the mobile API. */
+async function saveDailyReport(empId, body) {
+  const data = pick(body, ['report_date', 'work_done', 'hours', 'plan_tomorrow', 'blockers', 'project_id']);
+  if (!data.work_done) throw new HttpError(400, 'Please describe the work done', 'VALIDATION_ERROR');
+  data.report_date = data.report_date || toDateStr();
+  if (data.report_date > toDateStr()) throw new HttpError(400, 'Cannot submit a report for a future date', 'VALIDATION_ERROR');
+  // keep the saved project when the client doesn't send one (the web form has no project field)
+  await query(
+    `INSERT INTO daily_reports (employee_id, report_date, work_done, hours, plan_tomorrow, blockers, project_id)
+     VALUES (?,?,?,?,?,?,?)
+     ON DUPLICATE KEY UPDATE work_done = VALUES(work_done), hours = VALUES(hours), plan_tomorrow = VALUES(plan_tomorrow),
+       blockers = VALUES(blockers), ${'project_id' in data ? 'project_id = VALUES(project_id),' : ''} status = 'submitted'`,
+    [empId, data.report_date, data.work_done, data.hours || 0, data.plan_tomorrow || null, data.blockers || null, data.project_id || null]
+  );
+  return one('SELECT * FROM daily_reports WHERE employee_id = ? AND report_date = ?', [empId, data.report_date]);
+}
+
 router.get(
   '/reports',
   asyncHandler(async (req, res) => {
@@ -195,7 +262,8 @@ router.get(
     if (to) { where.push('r.report_date <= ?'); params.push(to); }
     const w = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const data = await query(
-      `SELECT r.*, e.name AS employee_name, e.emp_code, e.photo FROM daily_reports r JOIN employees e ON e.id = r.employee_id ${w}
+      `SELECT r.*, e.name AS employee_name, e.emp_code, e.photo, p.name AS project_name FROM daily_reports r JOIN employees e ON e.id = r.employee_id
+       LEFT JOIN projects p ON p.id = r.project_id ${w}
        ORDER BY r.report_date DESC, e.name LIMIT 300`,
       params
     );
@@ -207,17 +275,7 @@ router.post(
   '/reports',
   asyncHandler(async (req, res) => {
     if (!req.user.employee_id) throw new HttpError(400, 'Your login is not linked to an employee profile');
-    const data = pick(req.body, ['report_date', 'work_done', 'hours', 'plan_tomorrow', 'blockers']);
-    if (!data.work_done) throw new HttpError(400, 'Please describe the work done');
-    data.report_date = data.report_date || toDateStr();
-    if (data.report_date > toDateStr()) throw new HttpError(400, 'Cannot submit a report for a future date');
-    await query(
-      `INSERT INTO daily_reports (employee_id, report_date, work_done, hours, plan_tomorrow, blockers)
-       VALUES (?,?,?,?,?,?)
-       ON DUPLICATE KEY UPDATE work_done = VALUES(work_done), hours = VALUES(hours), plan_tomorrow = VALUES(plan_tomorrow),
-         blockers = VALUES(blockers), status = 'submitted'`,
-      [req.user.employee_id, data.report_date, data.work_done, data.hours || 0, data.plan_tomorrow || null, data.blockers || null]
-    );
+    await saveDailyReport(req.user.employee_id, req.body);
     res.status(201).json({ message: 'Daily report submitted' });
   })
 );
@@ -248,3 +306,4 @@ router.get(
 );
 
 module.exports = router;
+Object.assign(module.exports, { TASK_SELECT, TASK_FROM, notifyAssignee, addTaskComment, saveDailyReport });

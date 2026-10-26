@@ -69,26 +69,30 @@ router.put(
   })
 );
 
+/** Emails a one-hour reset link if the account exists. Shared with the mobile API. */
+async function sendPasswordReset(rawEmail) {
+  const email = String(rawEmail || '').trim().toLowerCase();
+  const user = await one("SELECT id, name, email FROM users WHERE email = ? AND status = 'active'", [email]);
+  if (!user) return;
+  const token = crypto.randomBytes(24).toString('hex');
+  await query('UPDATE users SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?', [token, user.id]);
+  const s = await getSettings();
+  const link = `${s.site_url || process.env.APP_URL}/reset-password?token=${token}`;
+  await sendEmail({
+    to: user.email,
+    subject: 'Reset your password',
+    html: `<p>Hi ${user.name},</p><p>Click the button below to reset your password. This link is valid for 1 hour.</p>
+           <p><a href="${link}" style="background:#1d6fb8;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Reset Password</a></p>`,
+    refType: 'user',
+    refId: user.id,
+  });
+}
+
 router.post(
   '/forgot-password',
   loginLimiter,
   asyncHandler(async (req, res) => {
-    const email = String(req.body.email || '').trim().toLowerCase();
-    const user = await one("SELECT id, name, email FROM users WHERE email = ? AND status = 'active'", [email]);
-    if (user) {
-      const token = crypto.randomBytes(24).toString('hex');
-      await query('UPDATE users SET reset_token = ?, reset_expires = DATE_ADD(NOW(), INTERVAL 1 HOUR) WHERE id = ?', [token, user.id]);
-      const s = await getSettings();
-      const link = `${s.site_url || process.env.APP_URL}/reset-password?token=${token}`;
-      await sendEmail({
-        to: user.email,
-        subject: 'Reset your password',
-        html: `<p>Hi ${user.name},</p><p>Click the button below to reset your password. This link is valid for 1 hour.</p>
-               <p><a href="${link}" style="background:#1d6fb8;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none">Reset Password</a></p>`,
-        refType: 'user',
-        refId: user.id,
-      });
-    }
+    await sendPasswordReset(req.body.email);
     res.json({ message: 'If the email exists, a reset link has been sent.' });
   })
 );
@@ -101,6 +105,7 @@ router.post(
     const user = await one('SELECT id FROM users WHERE reset_token = ? AND reset_expires > NOW()', [token || '']);
     if (!user) throw new HttpError(400, 'Reset link is invalid or has expired');
     await query('UPDATE users SET password_hash = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?', [await bcrypt.hash(password, 10), user.id]);
+    await query('UPDATE mobile_sessions SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL', [user.id]);
     res.json({ message: 'Password has been reset. You can login now.' });
   })
 );
@@ -145,6 +150,7 @@ router.put(
       throw new HttpError(400, 'You cannot disable or demote your own account');
     }
     await query('UPDATE users SET ? WHERE id = ?', [data, req.params.id]);
+    if (req.body.password) await query('UPDATE mobile_sessions SET revoked_at = NOW() WHERE user_id = ? AND revoked_at IS NULL', [req.params.id]);
     res.json({ message: 'User updated' });
   })
 );
@@ -161,3 +167,4 @@ router.delete(
 );
 
 module.exports = router;
+module.exports.sendPasswordReset = sendPasswordReset;

@@ -352,11 +352,16 @@ export function Projects() {
       columns={[
         { key: 'name', label: 'Project', render: (r) => <div><p className="font-medium">{r.name}</p><p className="text-xs text-slate-500">{r.client_name}</p></div> },
         { key: 'deadline', label: 'Deadline', render: (r) => fmtDate(r.deadline) },
+        { key: 'site', label: 'Site', render: (r) => <div className="text-xs"><p>{Number(r.geofence_enabled) && r.latitude ? <span className="badge bg-emerald-50 text-emerald-700">Geofence {r.geofence_radius} m</span> : <span className="text-slate-400">No geofence</span>}</p><p className="mt-1 text-slate-500">{r.member_count} member{Number(r.member_count) === 1 ? '' : 's'}</p></div> },
         { key: 'progress', label: 'Tasks', render: (r) => { const pct = r.task_count ? Math.round((r.done_count / r.task_count) * 100) : 0; return <div className="w-32"><div className="flex justify-between text-xs"><span>{r.done_count}/{r.task_count}</span><span>{pct}%</span></div><div className="mt-1 h-1.5 rounded-full bg-slate-100"><div className="h-1.5 rounded-full bg-brand-600" style={{ width: `${pct}%` }} /></div></div>; } },
         { key: 'status', label: 'Status' },
       ]}
-      fields={[{ name: 'name', label: 'Project name', required: true, span: 2 }, { name: 'client_id', label: 'Client', type: 'select', optionsFrom: { url: '/admin/clients' } }, { name: 'status', label: 'Status', type: 'select', options: ['planning', 'in_progress', 'on_hold', 'completed', 'cancelled'], noEmpty: true }, { name: 'start_date', label: 'Start date', type: 'date' }, { name: 'deadline', label: 'Deadline', type: 'date' }, { name: 'budget', label: 'Budget (₹)', type: 'number' }, { name: 'description', label: 'Description', type: 'textarea', span: 2 }]}
-      defaults={{ status: 'in_progress' }}
+      fields={[{ name: 'name', label: 'Project name', required: true, span: 2 }, { name: 'client_id', label: 'Client', type: 'select', optionsFrom: { url: '/admin/clients' } }, { name: 'status', label: 'Status', type: 'select', options: ['planning', 'in_progress', 'on_hold', 'completed', 'cancelled'], noEmpty: true }, { name: 'start_date', label: 'Start date', type: 'date' }, { name: 'deadline', label: 'Deadline', type: 'date' }, { name: 'budget', label: 'Budget (₹)', type: 'number' }, { name: 'description', label: 'Description', type: 'textarea', span: 2 },
+        { name: 'site_address', label: 'Site address', span: 2 },
+        { name: 'latitude', label: 'Site latitude', type: 'number', placeholder: '21.2380', hint: 'Google Maps › right-click the site › click the coordinates to copy' }, { name: 'longitude', label: 'Site longitude', type: 'number', placeholder: '81.6337' },
+        { name: 'geofence_radius', label: 'Geofence radius (metres)', type: 'number' },
+        { name: 'geofence_enabled', label: 'Members can check in at this site (geofence)', type: 'switch' }]}
+      defaults={{ status: 'in_progress', geofence_radius: 200, geofence_enabled: 0 }}
       filters={[{ name: 'status', label: 'Status', options: ['planning', 'in_progress', 'on_hold', 'completed', 'cancelled'] }]}
       rowActions={(r) => <><Link to={`/admin/projects/${r.id}`} className="btn-ghost btn-sm">Open</Link><Link to={`/admin/tasks?project=${r.id}`} className="btn-ghost btn-sm">Tasks</Link></>}
     />

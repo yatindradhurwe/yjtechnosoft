@@ -1,0 +1,1341 @@
+openapi: 3.0.3
+info:
+  title: YJTechnosoft Employee App API
+  version: 1.0.0
+  description: |
+    REST API for the employee Flutter app: login, profile, projects with geofence,
+    geofenced check-in/out, attendance, leave, daily tasks, daily reports and notifications.
+
+    Every response uses the envelope `{ success, message?, data, meta? }`; errors are
+    `{ success: false, message, code, details? }`. Date-times are ISO 8601 with offset
+    (e.g. `2026-10-26T09:58:00+05:30`); dates are `YYYY-MM-DD`.
+
+    Guide with rules, error codes and Flutter code: docs/mobile-api.md
+servers:
+  - url: https://yjtechnosoft.com/api/mobile/v1
+    description: Production
+  - url: http://localhost:5000/api/mobile/v1
+    description: Local development
+security:
+  - bearerAuth: []
+tags:
+  - name: Auth
+  - name: Profile
+  - name: Dashboard
+  - name: Projects
+  - name: Attendance
+  - name: Leaves
+  - name: Tasks
+  - name: Reports
+  - name: Notifications
+
+paths:
+  /app-config:
+    get:
+      tags: [Auth]
+      summary: Company branding and server time (public)
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data: { $ref: '#/components/schemas/AppConfig' }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Sign in with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+                device_id: { type: string, description: Stable per install; re-login on the same device replaces its session }
+                device_name: { type: string, example: Samsung Galaxy A54 }
+                platform: { type: string, enum: [android, ios, web] }
+                app_version: { type: string, example: 1.0.0 }
+                fcm_token: { type: string }
+      responses:
+        '200':
+          description: Signed in
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/Tokens'
+                          - type: object
+                            properties:
+                              user: { $ref: '#/components/schemas/User' }
+                              employee: { $ref: '#/components/schemas/Employee' }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '429': { $ref: '#/components/responses/Error' }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Exchange a refresh token for a new token pair (rotates the refresh token)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200':
+          description: New tokens
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data: { $ref: '#/components/schemas/Tokens' }
+        '401': { $ref: '#/components/responses/Error' }
+
+  /auth/forgot-password:
+    post:
+      tags: [Auth]
+      summary: Email a password reset link (always succeeds)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Sign out this device (or all devices)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                all_devices: { type: boolean, default: false }
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+
+  /auth/password:
+    put:
+      tags: [Auth]
+      summary: Change password (signs out every other device)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password: { type: string }
+                new_password: { type: string, minLength: 6 }
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /auth/device:
+    put:
+      tags: [Auth]
+      summary: Update this device's FCM token / app version
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fcm_token: { type: string }
+                app_version: { type: string }
+                device_name: { type: string }
+                platform: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+
+  /auth/sessions:
+    get:
+      tags: [Auth]
+      summary: Devices signed in to this account
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Session' }
+
+  /auth/sessions/{id}:
+    delete:
+      tags: [Auth]
+      summary: Sign out one of my devices
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /me:
+    get:
+      tags: [Profile]
+      summary: My login and employee profile
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          user: { $ref: '#/components/schemas/User' }
+                          employee: { $ref: '#/components/schemas/Employee' }
+    put:
+      tags: [Profile]
+      summary: Update phone, address, emergency contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone: { type: string }
+                address: { type: string }
+                emergency_contact: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/EmployeeResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /me/photo:
+    post:
+      tags: [Profile]
+      summary: Upload profile photo
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [photo]
+              properties:
+                photo: { type: string, format: binary, description: 'jpg/jpeg/png/gif/webp, max 5 MB' }
+      responses:
+        '200': { $ref: '#/components/responses/EmployeeResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '413': { $ref: '#/components/responses/Error' }
+
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Everything for the home screen
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data: { $ref: '#/components/schemas/Dashboard' }
+
+  /projects:
+    get:
+      tags: [Projects]
+      summary: Projects I am a member of or have tasks in
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ProjectStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Project' }
+
+  /projects/{id}:
+    get:
+      tags: [Projects]
+      summary: Project detail with team, my tasks and today's attendance at the site
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data: { $ref: '#/components/schemas/ProjectDetail' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /attendance/geofences:
+    get:
+      tags: [Attendance]
+      summary: Sites I may check in at (office + my geofenced projects)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          mode: { $ref: '#/components/schemas/GeofenceMode' }
+                          max_gps_accuracy: { type: integer, nullable: true }
+                          sites:
+                            type: array
+                            items: { $ref: '#/components/schemas/Site' }
+
+  /attendance/today:
+    get:
+      tags: [Attendance]
+      summary: Today's attendance, shift and rules
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          date: { type: string, format: date }
+                          server_time: { type: string, format: date-time }
+                          attendance: { $ref: '#/components/schemas/AttendanceNullable' }
+                          shift: { $ref: '#/components/schemas/Shift' }
+                          can_check_in: { type: boolean }
+                          can_check_out: { type: boolean }
+                          rules: { $ref: '#/components/schemas/AttendanceRules' }
+
+  /attendance/check-in:
+    post:
+      tags: [Attendance]
+      summary: Check in (geofence-validated). Use multipart to attach a selfie.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CheckInRequest' }
+          multipart/form-data:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/CheckInRequest'
+                - type: object
+                  properties:
+                    photo: { type: string, format: binary, description: 'Selfie, image max 5 MB' }
+      responses:
+        '200': { $ref: '#/components/responses/AttendanceResult' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /attendance/check-out:
+    post:
+      tags: [Attendance]
+      summary: Check out (never blocked by the geofence – only flagged)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LocationFix' }
+      responses:
+        '200': { $ref: '#/components/responses/AttendanceResult' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /attendance:
+    get:
+      tags: [Attendance]
+      summary: Monthly attendance with summary and holidays
+      parameters:
+        - name: month
+          in: query
+          description: YYYY-MM (default current month)
+          schema: { type: string, pattern: '^\d{4}-\d{2}$', example: '2026-10' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          month: { type: string }
+                          summary:
+                            type: object
+                            properties:
+                              present: { type: integer, description: 'All worked days (on time + late + wfh)' }
+                              late: { type: integer }
+                              half_day: { type: integer }
+                              absent: { type: integer }
+                              leave: { type: integer }
+                              wfh: { type: integer }
+                              holiday: { type: integer }
+                              work_minutes: { type: integer }
+                          records:
+                            type: array
+                            items: { $ref: '#/components/schemas/Attendance' }
+                          holidays:
+                            type: array
+                            items: { $ref: '#/components/schemas/Holiday' }
+                          weekly_off:
+                            type: array
+                            items: { type: integer, description: '0 = Sunday … 6 = Saturday' }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /leaves/types:
+    get:
+      tags: [Leaves]
+      summary: Active leave types
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: integer }
+                            name: { type: string }
+                            quota: { type: number }
+                            is_paid: { type: boolean }
+                            color: { type: string }
+
+  /leaves/balance:
+    get:
+      tags: [Leaves]
+      summary: Leave balance for a year
+      parameters:
+        - name: year
+          in: query
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          year: { type: integer }
+                          balance:
+                            type: array
+                            items: { $ref: '#/components/schemas/LeaveBalance' }
+
+  /leaves/calculate:
+    get:
+      tags: [Leaves]
+      summary: Working days in a range (skips weekly offs and holidays)
+      parameters:
+        - { name: from_date, in: query, required: true, schema: { type: string, format: date } }
+        - { name: to_date, in: query, schema: { type: string, format: date } }
+        - { name: half_day, in: query, schema: { type: boolean } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          from_date: { type: string, format: date }
+                          to_date: { type: string, format: date }
+                          half_day: { type: boolean }
+                          days: { type: number }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /leaves:
+    get:
+      tags: [Leaves]
+      summary: My leave requests
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/LeaveStatus' }
+        - { name: year, in: query, schema: { type: integer } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PagedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Leave' }
+    post:
+      tags: [Leaves]
+      summary: Apply for leave
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [leave_type_id, from_date]
+              properties:
+                leave_type_id: { type: integer }
+                from_date: { type: string, format: date }
+                to_date: { type: string, format: date, description: Defaults to from_date }
+                half_day: { type: boolean }
+                reason: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/LeaveResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+
+  /leaves/{id}:
+    get:
+      tags: [Leaves]
+      summary: One leave request
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200': { $ref: '#/components/responses/LeaveResponse' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /leaves/{id}/cancel:
+    post:
+      tags: [Leaves]
+      summary: Cancel a pending leave request
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200': { $ref: '#/components/responses/LeaveResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /holidays:
+    get:
+      tags: [Leaves]
+      summary: Holidays in a year
+      parameters:
+        - { name: year, in: query, schema: { type: integer } }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Holiday' }
+
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: My tasks
+      parameters:
+        - { name: q, in: query, schema: { type: string } }
+        - name: status
+          in: query
+          description: Comma separated, e.g. todo,in_progress
+          schema: { type: string }
+        - name: priority
+          in: query
+          schema: { $ref: '#/components/schemas/TaskPriority' }
+        - { name: project_id, in: query, schema: { type: integer } }
+        - name: due
+          in: query
+          schema: { type: string, enum: [today, overdue, upcoming] }
+        - name: date
+          in: query
+          description: Day plan – open tasks active that day plus tasks due/completed that day
+          schema: { type: string, format: date }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PagedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Task' }
+    post:
+      tags: [Tasks]
+      summary: Create a task for myself
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: '#/components/schemas/TaskInput'
+                - required: [title]
+      responses:
+        '201': { $ref: '#/components/responses/TaskResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+
+  /tasks/{id}:
+    get:
+      tags: [Tasks]
+      summary: Task with comments
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        allOf:
+                          - $ref: '#/components/schemas/Task'
+                          - type: object
+                            properties:
+                              comments:
+                                type: array
+                                items: { $ref: '#/components/schemas/Comment' }
+        '404': { $ref: '#/components/responses/Error' }
+    patch:
+      tags: [Tasks]
+      summary: Update a task (status/progress only for tasks a manager assigned)
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/TaskInput' }
+      responses:
+        '200': { $ref: '#/components/responses/TaskResponse' }
+        '400': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+    delete:
+      tags: [Tasks]
+      summary: Delete a task I created
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+
+  /tasks/{id}/comments:
+    post:
+      tags: [Tasks]
+      summary: Comment on a task
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment]
+              properties:
+                comment: { type: string }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data: { $ref: '#/components/schemas/Comment' }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /reports:
+    get:
+      tags: [Reports]
+      summary: My daily work reports
+      parameters:
+        - { name: date, in: query, schema: { type: string, format: date } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PagedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Report' }
+    post:
+      tags: [Reports]
+      summary: Submit (or update) the report for a day
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [work_done]
+              properties:
+                work_done: { type: string }
+                hours: { type: number }
+                plan_tomorrow: { type: string }
+                blockers: { type: string }
+                project_id: { type: integer }
+                report_date: { type: string, format: date, description: Defaults to today; not in the future }
+      responses:
+        '201':
+          description: Saved
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data: { $ref: '#/components/schemas/Report' }
+        '400': { $ref: '#/components/responses/Error' }
+
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: My notifications (meta.unread = badge count)
+      parameters:
+        - { name: unread, in: query, schema: { type: boolean } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PagedEnvelope'
+                  - properties:
+                      meta:
+                        type: object
+                        properties:
+                          unread: { type: integer }
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Notification' }
+
+  /notifications/{id}/read:
+    post:
+      tags: [Notifications]
+      summary: Mark one as read
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+
+  /notifications/read-all:
+    post:
+      tags: [Notifications]
+      summary: Mark all as read
+      responses:
+        '200': { $ref: '#/components/responses/Message' }
+
+  /announcements:
+    get:
+      tags: [Notifications]
+      summary: Active announcements
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/PagedEnvelope'
+                  - properties:
+                      data:
+                        type: array
+                        items: { $ref: '#/components/schemas/Announcement' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Message:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Envelope'
+              - properties:
+                  data: { nullable: true, example: null }
+    EmployeeResponse:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Envelope'
+              - properties:
+                  data: { $ref: '#/components/schemas/Employee' }
+    AttendanceResult:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Envelope'
+              - properties:
+                  data:
+                    type: object
+                    properties:
+                      attendance: { $ref: '#/components/schemas/Attendance' }
+                      geofence:
+                        type: object
+                        properties:
+                          status: { $ref: '#/components/schemas/GeofenceStatus' }
+                          mode: { $ref: '#/components/schemas/GeofenceMode' }
+                          site: { $ref: '#/components/schemas/SiteMatch' }
+    LeaveResponse:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Envelope'
+              - properties:
+                  data: { $ref: '#/components/schemas/Leave' }
+    TaskResponse:
+      description: OK
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Envelope'
+              - properties:
+                  data: { $ref: '#/components/schemas/Task' }
+
+  schemas:
+    Envelope:
+      type: object
+      required: [success]
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
+        data: {}
+    PagedEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/Envelope'
+        - type: object
+          properties:
+            meta:
+              type: object
+              properties:
+                page: { type: integer }
+                limit: { type: integer }
+                total: { type: integer }
+    Error:
+      type: object
+      required: [success, message, code]
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string, example: You are 412 m from Raipur Site. Check-in is allowed within 150 m. }
+        code:
+          type: string
+          enum: [VALIDATION_ERROR, UNAUTHORIZED, TOKEN_EXPIRED, TOKEN_INVALID, SESSION_REVOKED, REFRESH_INVALID, REFRESH_EXPIRED,
+                 INVALID_CREDENTIALS, ACCOUNT_DISABLED, NOT_EMPLOYEE, FORBIDDEN, NOT_PROJECT_MEMBER, NOT_FOUND, CONFLICT,
+                 FILE_TOO_LARGE, INVALID_FILE, RATE_LIMITED, SERVER_ERROR, LOCATION_REQUIRED, LOW_GPS_ACCURACY, OUTSIDE_GEOFENCE,
+                 MOCK_LOCATION, WFH_NOT_ALLOWED, OFFICE_NETWORK_REQUIRED, SELFIE_REQUIRED, ALREADY_CHECKED_IN, ALREADY_CHECKED_OUT,
+                 NOT_CHECKED_IN, LEAVE_OVERLAP, NO_WORKING_DAYS, CANNOT_CANCEL]
+        details:
+          type: object
+          description: 'OUTSIDE_GEOFENCE → { nearest: SiteMatch }; LOW_GPS_ACCURACY → { accuracy, required }'
+
+    AppConfig:
+      type: object
+      properties:
+        api_version: { type: string }
+        company_name: { type: string }
+        logo_url: { type: string, nullable: true }
+        support_email: { type: string, nullable: true }
+        support_phone: { type: string, nullable: true }
+        timezone: { type: string, example: Asia/Kolkata }
+        utc_offset: { type: string, example: '+05:30' }
+        server_time: { type: string, format: date-time }
+    Tokens:
+      type: object
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, example: Bearer }
+        expires_in: { type: integer, description: Seconds, example: 3600 }
+        refresh_token: { type: string }
+        refresh_expires_at: { type: string, format: date-time }
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string }
+        phone: { type: string, nullable: true }
+        role: { type: string, enum: [employee, hr, accounts, admin] }
+    Session:
+      type: object
+      properties:
+        id: { type: integer }
+        device_name: { type: string, nullable: true }
+        platform: { type: string, nullable: true }
+        app_version: { type: string, nullable: true }
+        ip: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: string, format: date-time, nullable: true }
+        is_current: { type: boolean }
+    IdName:
+      type: object
+      nullable: true
+      properties:
+        id: { type: integer }
+        name: { type: string }
+    Shift:
+      type: object
+      properties:
+        start: { type: string, nullable: true, example: '10:00' }
+        end: { type: string, nullable: true, example: '18:00' }
+    Employee:
+      type: object
+      properties:
+        id: { type: integer }
+        emp_code: { type: string }
+        name: { type: string }
+        email: { type: string, nullable: true }
+        phone: { type: string, nullable: true }
+        gender: { type: string, nullable: true, enum: [male, female, other, null] }
+        dob: { type: string, format: date, nullable: true }
+        father_name: { type: string, nullable: true }
+        address: { type: string, nullable: true }
+        emergency_contact: { type: string, nullable: true }
+        photo_url: { type: string, nullable: true }
+        employment_type: { type: string, enum: [full_time, part_time, intern, contract] }
+        status: { type: string, enum: [active, on_notice, resigned, terminated] }
+        joining_date: { type: string, format: date, nullable: true }
+        probation_end: { type: string, format: date, nullable: true }
+        shift: { $ref: '#/components/schemas/Shift' }
+        department: { $ref: '#/components/schemas/IdName' }
+        designation: { $ref: '#/components/schemas/IdName' }
+        reporting_manager:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            phone: { type: string, nullable: true }
+            email: { type: string, nullable: true }
+        bank:
+          type: object
+          properties:
+            bank_name: { type: string, nullable: true }
+            account_no: { type: string, nullable: true, description: Masked, example: '••••••••7366' }
+            ifsc: { type: string, nullable: true }
+        kyc:
+          type: object
+          properties:
+            pan: { type: string, nullable: true, description: Masked }
+            aadhaar: { type: string, nullable: true, description: Masked }
+
+    GeofenceMode: { type: string, enum: ['off', flag, enforce] }
+    GeofenceStatus: { type: string, nullable: true, enum: [inside, outside, wfh, no_location, no_site, null] }
+    AttendanceRules:
+      type: object
+      properties:
+        geofence_mode: { $ref: '#/components/schemas/GeofenceMode' }
+        max_gps_accuracy: { type: integer, nullable: true }
+        allow_wfh: { type: boolean }
+        selfie_required: { type: boolean }
+        late_grace_minutes: { type: integer }
+        half_day_hours: { type: number }
+        weekly_off:
+          type: array
+          items: { type: integer }
+    Site:
+      type: object
+      properties:
+        type: { type: string, enum: [office, project] }
+        id: { type: integer, nullable: true }
+        name: { type: string }
+        address: { type: string, nullable: true }
+        latitude: { type: number }
+        longitude: { type: number }
+        radius: { type: integer, description: Metres }
+    SiteMatch:
+      type: object
+      nullable: true
+      properties:
+        type: { type: string, enum: [office, project] }
+        id: { type: integer, nullable: true }
+        name: { type: string }
+        distance: { type: integer, description: Metres from the site centre }
+        radius: { type: integer }
+        inside: { type: boolean }
+    LocationFix:
+      type: object
+      properties:
+        latitude: { type: number, example: 21.2381 }
+        longitude: { type: number, example: 81.6338 }
+        accuracy: { type: number, description: Metres, example: 12 }
+        is_mocked: { type: boolean }
+    CheckInRequest:
+      allOf:
+        - $ref: '#/components/schemas/LocationFix'
+        - type: object
+          properties:
+            project_id: { type: integer, description: Project worked on today; must be a member }
+            wfh: { type: boolean }
+            notes: { type: string }
+            device_name: { type: string }
+            platform: { type: string }
+            app_version: { type: string }
+    PlaceFix:
+      type: object
+      nullable: true
+      properties:
+        latitude: { type: number, nullable: true }
+        longitude: { type: number, nullable: true }
+        accuracy: { type: integer, nullable: true }
+        distance: { type: integer, nullable: true }
+        geofence: { $ref: '#/components/schemas/GeofenceStatus' }
+    Attendance:
+      type: object
+      properties:
+        id: { type: integer }
+        date: { type: string, format: date }
+        status: { type: string, enum: [present, late, half_day, absent, leave, holiday, wfh] }
+        check_in: { type: string, format: date-time, nullable: true }
+        check_out: { type: string, format: date-time, nullable: true }
+        work_minutes: { type: integer }
+        source: { type: string, nullable: true, enum: [mobile, web, null] }
+        project: { $ref: '#/components/schemas/IdName' }
+        check_in_location: { $ref: '#/components/schemas/PlaceFix' }
+        check_out_location: { $ref: '#/components/schemas/PlaceFix' }
+        has_selfie: { type: boolean }
+        notes: { type: string, nullable: true }
+    AttendanceNullable:
+      allOf:
+        - $ref: '#/components/schemas/Attendance'
+      nullable: true
+    Holiday:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        date: { type: string, format: date }
+        type: { type: string, enum: [public, optional, company] }
+
+    ProjectStatus: { type: string, enum: [planning, in_progress, on_hold, completed, cancelled] }
+    Project:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/ProjectStatus' }
+        client_name: { type: string, nullable: true }
+        start_date: { type: string, format: date, nullable: true }
+        deadline: { type: string, format: date, nullable: true }
+        is_member: { type: boolean }
+        my_role: { type: string, nullable: true }
+        my_task_count: { type: integer }
+        my_open_tasks: { type: integer }
+        site:
+          type: object
+          properties:
+            address: { type: string, nullable: true }
+            latitude: { type: number, nullable: true }
+            longitude: { type: number, nullable: true }
+            radius: { type: integer, nullable: true }
+            geofence_enabled: { type: boolean }
+    ProjectDetail:
+      allOf:
+        - $ref: '#/components/schemas/Project'
+        - type: object
+          properties:
+            team:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  name: { type: string }
+                  emp_code: { type: string }
+                  designation: { type: string, nullable: true }
+                  role: { type: string, nullable: true }
+                  phone: { type: string, nullable: true }
+                  photo_url: { type: string, nullable: true }
+            my_tasks:
+              type: array
+              items: { $ref: '#/components/schemas/Task' }
+            today_attendance: { $ref: '#/components/schemas/AttendanceNullable' }
+
+    LeaveStatus: { type: string, enum: [pending, approved, rejected, cancelled] }
+    LeaveBalance:
+      type: object
+      properties:
+        leave_type_id: { type: integer }
+        name: { type: string }
+        color: { type: string }
+        is_paid: { type: boolean }
+        quota: { type: number }
+        used: { type: number }
+        pending: { type: number }
+        remaining: { type: number }
+    Leave:
+      type: object
+      properties:
+        id: { type: integer }
+        leave_type:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            color: { type: string }
+            is_paid: { type: boolean }
+        from_date: { type: string, format: date }
+        to_date: { type: string, format: date }
+        half_day: { type: boolean }
+        days: { type: number }
+        reason: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/LeaveStatus' }
+        remarks: { type: string, nullable: true }
+        approved_by: { type: string, nullable: true }
+        applied_at: { type: string, format: date-time }
+        can_cancel: { type: boolean }
+
+    TaskPriority: { type: string, enum: [low, medium, high, urgent] }
+    TaskStatus: { type: string, enum: [todo, in_progress, review, done, blocked] }
+    TaskInput:
+      type: object
+      properties:
+        title: { type: string }
+        description: { type: string }
+        project_id: { type: integer }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        start_date: { type: string, format: date }
+        due_date: { type: string, format: date }
+        progress: { type: integer, minimum: 0, maximum: 100 }
+    Task:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        priority: { $ref: '#/components/schemas/TaskPriority' }
+        status: { $ref: '#/components/schemas/TaskStatus' }
+        progress: { type: integer }
+        start_date: { type: string, format: date, nullable: true }
+        due_date: { type: string, format: date, nullable: true }
+        completed_at: { type: string, format: date-time, nullable: true }
+        is_overdue: { type: boolean }
+        project: { $ref: '#/components/schemas/IdName' }
+        assigned_by: { type: string, nullable: true }
+        is_self_created: { type: boolean }
+        comment_count: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    Comment:
+      type: object
+      properties:
+        id: { type: integer }
+        comment: { type: string }
+        user:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            role: { type: string }
+        is_mine: { type: boolean }
+        created_at: { type: string, format: date-time }
+    Report:
+      type: object
+      properties:
+        id: { type: integer }
+        report_date: { type: string, format: date }
+        work_done: { type: string }
+        hours: { type: number }
+        plan_tomorrow: { type: string, nullable: true }
+        blockers: { type: string, nullable: true }
+        project: { $ref: '#/components/schemas/IdName' }
+        status: { type: string, enum: [submitted, reviewed] }
+        reviewer_remarks: { type: string, nullable: true }
+        submitted_at: { type: string, format: date-time }
+    Notification:
+      type: object
+      properties:
+        id: { type: integer }
+        type: { type: string, example: leave }
+        title: { type: string }
+        body: { type: string, nullable: true }
+        link: { type: string, nullable: true, description: Web panel path }
+        is_read: { type: boolean }
+        created_at: { type: string, format: date-time }
+    Announcement:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        message: { type: string }
+        priority: { type: string, enum: [normal, important] }
+        created_at: { type: string, format: date-time }
+    Dashboard:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        server_time: { type: string, format: date-time }
+        employee: { $ref: '#/components/schemas/Employee' }
+        attendance:
+          type: object
+          properties:
+            today: { $ref: '#/components/schemas/AttendanceNullable' }
+            can_check_in: { type: boolean }
+            can_check_out: { type: boolean }
+            rules: { $ref: '#/components/schemas/AttendanceRules' }
+        month_summary:
+          type: object
+          properties:
+            month: { type: string }
+            present: { type: integer }
+            late: { type: integer }
+            half_day: { type: integer }
+            absent: { type: integer }
+            on_leave: { type: integer }
+            wfh: { type: integer }
+            work_minutes: { type: integer }
+        leave_balance:
+          type: array
+          items: { $ref: '#/components/schemas/LeaveBalance' }
+        tasks:
+          type: object
+          properties:
+            counts:
+              type: object
+              properties:
+                todo: { type: integer }
+                in_progress: { type: integer }
+                review: { type: integer }
+                blocked: { type: integer }
+                done: { type: integer }
+                overdue: { type: integer }
+                due_today: { type: integer }
+            open:
+              type: array
+              items: { $ref: '#/components/schemas/Task' }
+        daily_report_submitted: { type: boolean }
+        project_count: { type: integer }
+        announcements:
+          type: array
+          items: { $ref: '#/components/schemas/Announcement' }
+        upcoming_holidays:
+          type: array
+          items: { $ref: '#/components/schemas/Holiday' }
+        unread_notifications: { type: integer }

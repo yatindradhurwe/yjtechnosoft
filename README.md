@@ -12,6 +12,7 @@ A complete, fully dynamic replacement for the old PHP website of **YJTECHNOSOFT 
 * **Documents vault** – private storage for agreements, work orders, proposals, KYC and certificates, linked to clients and projects.
 * **One-click sharing** – invoices, bills, quotations, receipts, agreements and letters can be shared on WhatsApp or email. Each share opens a branded page with a UPI QR and online acceptance.
 * **Push notifications** – browser and mobile push plus an in-app notification bell for leads, payments, acceptances, leave, tasks and renewals.
+* **Employee mobile app API (Flutter)** – login, profile, assigned projects, GPS-geofenced check-in/out with optional selfie, leave, daily tasks and reports. See [`docs/mobile-api.md`](docs/mobile-api.md).
 
 | Layer    | Tech |
 |----------|------|
@@ -158,6 +159,13 @@ Website forms:
 * **Daily reports** – employees submit their end-of-day report. Managers review it and see who hasn't submitted.
 * **Announcements**, **holidays**, **departments**, **designations**.
 
+### Employee mobile app (Flutter API)
+* REST API at **`/api/mobile/v1`** for the employee Flutter app. The full reference with Flutter code is in [`docs/mobile-api.md`](docs/mobile-api.md), and the OpenAPI spec is [`docs/mobile-api.openapi.yaml`](docs/mobile-api.openapi.yaml) (also served at `/api/mobile/v1/openapi.yaml`).
+* Employees sign in with their portal email and password. Sessions are per device, with refresh tokens. HR can sign out a lost phone from the employee's page (**Mobile app** card).
+* **Geofenced attendance** – **Settings › HR & Attendance › Geofenced check-in**: *Off*, *Flag* (allow anywhere but mark outside check-ins) or *Enforce* (block outside the office and the employee's project sites). Set the office latitude and longitude there. Each project gets a site location, radius and "members can check in" switch (**Projects › Edit**), and members are added from **Projects › Open › Members**. The GPS accuracy limit, fake-GPS blocking, WFH permission and a required selfie are all configurable.
+* The **Attendance** register shows, for every check-in, whether it came from the app or the web, the project, inside/outside with distance, map links and the selfie.
+* Project page: site and geofence, members, and who checked in at the site today. Daily reports can be linked to a project.
+
 ### Recruitment & letters
 * **Job openings** are published on the website. **Applications** move through a drag-and-drop pipeline (applied › shortlisted › interview › selected › offered › hired). From there you can schedule interviews, notify the candidate by email/WhatsApp/SMS, and **Hire** (which creates the employee record).
 * **Letters** – choose an employee or candidate and a template. The details fill in automatically, and the form asks for any extra fields such as duration or acceptance date. You can edit the result in the rich-text editor, then **Save & send**.
@@ -198,7 +206,7 @@ The team gets a notification when a client **opens** an invoice, quotation or ag
 | Admin | Everything, including website CMS, settings, users and message logs |
 | HR | Employees, attendance, leaves, payroll, recruitment, letters, projects, tasks and the vault |
 | Accounts | Clients, quotations, invoices, payments, servers, expenses, leads, payroll, agreements and the vault |
-| Employee | Self-service portal: check-in/out, attendance calendar, leaves, tasks, daily reports, payslips, letters |
+| Employee | Self-service portal and mobile app: check-in/out, attendance calendar, leaves, tasks, daily reports, payslips, letters |
 
 Any HR, accounts or admin user who is linked to an employee profile also gets the self-service menu.
 
@@ -216,13 +224,14 @@ server/
   assets/               letterhead.jpg, logo, Poppins fonts used in PDFs
   database/schema.sql   all tables
   database/seed.js      setup script (schema + default content + letter templates)
-  src/routes/           auth, public, billing, hr, work, recruitment, documents, settings, generic CRUD
-  src/services/         pdf.js (letterhead PDFs), notify.js (email/SMS/WhatsApp), documents.js, cron.js
+  src/routes/           auth, public, billing, hr, work, recruitment, documents, settings, generic CRUD, mobile (Flutter API)
+  src/services/         pdf.js (letterhead PDFs), notify.js (email/SMS/WhatsApp), documents.js, cron.js, attendance.js (check-in + geofence)
+docs/                   mobile-api.md (Flutter API guide), mobile-api.openapi.yaml
   uploads/              uploaded files (resumes, documents and receipts need a staff login)
 ```
 
 ## 6. Security notes
 * Use a long random `JWT_SECRET` and HTTPS in production.
-* Resumes, employee documents, expense receipts and vault files are served only to logged-in admin/HR/accounts users, or through signed share links.
+* Resumes, employee documents, expense receipts, vault files and attendance selfies are served only to logged-in admin/HR/accounts users, or through signed share links.
 * Server/hosting passwords saved under **Servers & Domains** are stored in the database as entered. Restrict who has the Accounts/Admin role, and keep database backups secure.
 * Take regular backups of the MySQL database and the `server/uploads` folder.

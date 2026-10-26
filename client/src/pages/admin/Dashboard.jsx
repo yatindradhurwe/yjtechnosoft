@@ -32,21 +32,24 @@ function useClock() {
   return now;
 }
 
-/** Best-effort location; never blocks check-in (the browser timeout ignores time spent on the permission prompt) */
+/**
+ * Best-effort location; never blocks check-in (the browser timeout ignores time spent on the permission prompt).
+ * The server decides whether a missing location is acceptable (Settings › HR & Attendance › Geofenced check-in).
+ */
 function getLocation() {
   return new Promise((resolve) => {
-    if (!navigator.geolocation) return resolve(null);
-    const timer = setTimeout(() => resolve(null), 5000);
+    if (!navigator.geolocation) return resolve({});
+    const timer = setTimeout(() => resolve({}), 10000);
     navigator.geolocation.getCurrentPosition(
       (p) => {
         clearTimeout(timer);
-        resolve(`${p.coords.latitude.toFixed(5)},${p.coords.longitude.toFixed(5)}`);
+        resolve({ latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: Math.round(p.coords.accuracy) });
       },
       () => {
         clearTimeout(timer);
-        resolve(null);
+        resolve({});
       },
-      { timeout: 5000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
     );
   });
 }
@@ -58,8 +61,8 @@ export function CheckInCard({ today, onChange }) {
   const act = async (kind) => {
     setBusy(true);
     try {
-      const location = await getLocation();
-      const { data } = await api.post(`/hr/attendance/${kind}`, { location, wfh });
+      const coords = await getLocation();
+      const { data } = await api.post(`/hr/attendance/${kind}`, { ...coords, wfh });
       toast.success(data.message);
       onChange?.();
     } catch (e) {

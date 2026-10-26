@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  Plus, UserCog, Pencil, Mail, Phone, CalendarCheck, CalendarOff, Banknote, FileSignature, FileText, Trash2, Check, X, Download, Send, Eye, ArrowLeft, Save, KeyRound, UserCheck, Clock, Upload } from 'lucide-react';
+  Plus, UserCog, Pencil, Mail, Phone, CalendarCheck, CalendarOff, Banknote, FileSignature, FileText, Trash2, Check, X, Download, Send, Eye, ArrowLeft, Save, KeyRound, UserCheck, Clock, Upload, Smartphone, MapPin, Camera } from 'lucide-react';
 import api, { errMsg, openPdf } from '../../lib/api';
 import useFetch from '../../lib/useFetch';
 import { cn, fmtDate, fmtTime, minutesToHours, money, MONTHS, titleCase, today, waLink, asset } from '../../lib/utils';
@@ -254,6 +254,7 @@ export function EmployeeView() {
               </div>
             ))}
           </div>
+          <div className="space-y-6">
           <div className="card p-6">
             <h3 className="mb-4 font-semibold">Leave balance ({new Date().getFullYear()})</h3>
             <div className="space-y-3">
@@ -264,6 +265,8 @@ export function EmployeeView() {
                 </div>
               ))}
             </div>
+          </div>
+          <MobileDevices employeeId={e.id} />
           </div>
         </div>
       )}
@@ -311,6 +314,41 @@ export function EmployeeView() {
 }
 
 /* ====================================================================== Attendance calendar (shared) */
+/** Phones signed in to the employee mobile app – HR can sign out a lost device */
+function MobileDevices({ employeeId }) {
+  const confirm = useConfirm();
+  const { data, reload } = useFetch(`/hr/employees/${employeeId}/mobile-sessions`);
+  const rows = data?.data || [];
+  const signOut = async (s) => {
+    if (!(await confirm({ text: s ? `Sign out the mobile app on ${s.device_name || 'this device'}?` : 'Sign out the mobile app on every device?' }))) return;
+    try {
+      const { data: r } = await api.delete(`/hr/employees/${employeeId}/mobile-sessions${s ? `/${s.id}` : ''}`);
+      toast.success(r.message);
+      reload();
+    } catch (err) {
+      toast.error(errMsg(err));
+    }
+  };
+  return (
+    <div className="card p-6">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="flex items-center gap-2 font-semibold"><Smartphone className="h-4 w-4" /> Mobile app</h3>
+        {rows.length > 1 && <button className="text-xs font-semibold text-red-600 hover:underline" onClick={() => signOut()}>Sign out all</button>}
+      </div>
+      {rows.map((s) => (
+        <div key={s.id} className="flex items-center justify-between gap-2 py-1.5 text-sm">
+          <div className="min-w-0">
+            <p className="truncate font-medium">{s.device_name || titleCase(s.platform || 'device')}</p>
+            <p className="text-xs text-slate-500">{[titleCase(s.platform || ''), s.app_version && `v${s.app_version}`, `last used ${fmtDate(s.last_used_at)}`].filter(Boolean).join(' · ')}</p>
+          </div>
+          <button className="btn-ghost btn-sm text-red-600" onClick={() => signOut(s)}>Sign out</button>
+        </div>
+      ))}
+      {!rows.length && <p className="text-sm text-slate-500">Not signed in on any phone.</p>}
+    </div>
+  );
+}
+
 const DAY_COLORS = { present: 'bg-emerald-500', late: 'bg-amber-500', half_day: 'bg-orange-400', absent: 'bg-red-500', leave: 'bg-violet-500', wfh: 'bg-sky-500', holiday: 'bg-pink-400' };
 
 export function AttendanceCalendar({ rows = [], holidays = [], month }) {
@@ -354,6 +392,31 @@ export function AttendanceCalendar({ rows = [], holidays = [], month }) {
 
 /* ====================================================================== Attendance (HR) */
 const ATT_STATUSES = ['present', 'late', 'half_day', 'absent', 'leave', 'wfh', 'holiday'];
+const GEO = {
+  inside: ['Inside', 'bg-emerald-50 text-emerald-700'], outside: ['Outside', 'bg-red-50 text-red-700'], wfh: ['WFH', 'bg-sky-50 text-sky-700'],
+  no_location: ['No GPS', 'bg-amber-50 text-amber-700'], no_site: ['No site', 'bg-slate-100 text-slate-600'],
+};
+const mapLink = (loc) => `https://www.google.com/maps?q=${encodeURIComponent(loc)}`;
+
+/** Where the employee checked in from: geofence result, project site, map links and selfie */
+function CheckInPlace({ r }) {
+  if (!r.check_in || (!r.check_in_geofence && !r.check_in_location)) return <span className="text-slate-400">—</span>;
+  const [label, tone] = GEO[r.check_in_geofence] || [];
+  return (
+    <div className="space-y-1 text-xs">
+      <div className="flex items-center gap-1.5">
+        {label && <span className={cn('badge', tone)}>{label}{r.check_in_distance !== null && r.check_in_distance !== undefined && r.check_in_geofence !== 'wfh' ? ` · ${r.check_in_distance} m` : ''}</span>}
+        {r.source && <span className="text-slate-400">{r.source === 'mobile' ? 'App' : titleCase(r.source)}</span>}
+      </div>
+      {r.project_name && <p className="text-slate-600">{r.project_name}</p>}
+      <div className="flex flex-wrap gap-2">
+        {r.check_in_location && <a href={mapLink(r.check_in_location)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-brand-700 hover:underline"><MapPin className="h-3 w-3" />In</a>}
+        {r.check_out_location && <a href={mapLink(r.check_out_location)} target="_blank" rel="noreferrer" className={cn('inline-flex items-center gap-0.5 hover:underline', r.check_out_geofence === 'outside' ? 'text-red-600' : 'text-brand-700')} title={r.check_out_geofence === 'outside' ? `Checked out ${r.check_out_distance} m outside the geofence` : ''}><MapPin className="h-3 w-3" />Out{r.check_out_geofence === 'outside' ? ' (outside)' : ''}</a>}
+        {r.check_in_photo && <a href={asset(r.check_in_photo)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-0.5 text-brand-700 hover:underline"><Camera className="h-3 w-3" />Selfie</a>}
+      </div>
+    </div>
+  );
+}
 
 export function Attendance() {
   const [tab, setTab] = useState('daily');
@@ -422,7 +485,8 @@ function DailyRegister() {
           { key: 'check_in', label: 'In', render: (r) => <input type="time" className="input !w-32 !py-1.5" value={val(r, 'check_in')} onChange={(e) => set(r, 'check_in', e.target.value)} /> },
           { key: 'check_out', label: 'Out', render: (r) => <input type="time" className="input !w-32 !py-1.5" value={val(r, 'check_out')} onChange={(e) => set(r, 'check_out', e.target.value)} /> },
           { key: 'work_minutes', label: 'Hours', render: (r) => (r.work_minutes ? minutesToHours(r.work_minutes) : '—') },
-          { key: 'notes', label: 'Notes', render: (r) => <input className="input !w-44 !py-1.5" value={val(r, 'notes')} onChange={(e) => set(r, 'notes', e.target.value)} placeholder={r.check_in_location || ''} /> },
+          { key: 'place', label: 'Location', render: (r) => <CheckInPlace r={r} /> },
+          { key: 'notes', label: 'Notes', render: (r) => <input className="input !w-44 !py-1.5" value={val(r, 'notes')} onChange={(e) => set(r, 'notes', e.target.value)} /> },
         ]}
       />
     </>

@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast';
 import {
   FileSignature, Plus, Eye, Trash2, Wand2, ArrowLeft, RefreshCcw, ShieldCheck, Upload, FolderLock, FileText, FileImage, FileSpreadsheet, File, Download, FolderKanban,
-  ClipboardList, Receipt, FileCheck2, Calendar, Users,
+  ClipboardList, Receipt, FileCheck2, Calendar, Users, MapPin, UserPlus, X,
 } from 'lucide-react';
 import api, { errMsg, openPdf } from '../../lib/api';
 import useFetch from '../../lib/useFetch';
@@ -12,6 +12,7 @@ import { PageHeader, SearchInput, StatusBadge, Spinner, Modal, Field, PageLoader
 import DataTable from '../../components/ui/DataTable';
 import ShareMenu from '../../components/ui/ShareMenu';
 import ResourcePage from '../../components/admin/ResourcePage';
+import { useAuth } from '../../context/AuthContext';
 
 const CONTRACT_TYPES = ['service_agreement', 'website_development', 'software_development', 'amc', 'hosting', 'nda', 'freelancer', 'mou', 'custom'];
 const CONTRACT_STATUSES = ['draft', 'sent', 'accepted', 'signed', 'active', 'expired', 'terminated'];
@@ -400,9 +401,110 @@ export function Vault() {
 }
 
 /* ====================================================================== Project detail */
+const GEO_TONE = { inside: 'bg-emerald-50 text-emerald-700', outside: 'bg-red-50 text-red-700', wfh: 'bg-sky-50 text-sky-700', no_location: 'bg-amber-50 text-amber-700', no_site: 'bg-slate-100 text-slate-600' };
+
+/** Project site location, geofence and today's check-ins at the site */
+function ProjectSite({ p }) {
+  const hasSite = p.latitude !== null && p.longitude !== null;
+  const geofence = hasSite && Number(p.geofence_enabled);
+  return (
+    <div className="card p-5">
+      <h3 className="mb-3 flex items-center gap-2 font-semibold"><MapPin className="h-4 w-4" /> Site &amp; geofence</h3>
+      {hasSite ? (
+        <div className="space-y-1 text-sm">
+          {p.site_address && <p>{p.site_address}</p>}
+          <p className="text-slate-500">{Number(p.latitude).toFixed(5)}, {Number(p.longitude).toFixed(5)} · <a href={`https://www.google.com/maps?q=${p.latitude},${p.longitude}`} target="_blank" rel="noreferrer" className="font-semibold text-brand-700 hover:underline">Open map</a></p>
+          <p>{geofence ? <span className="badge bg-emerald-50 text-emerald-700">Check-in allowed within {p.geofence_radius} m</span> : <span className="badge bg-slate-100 text-slate-600">Geofence off</span>}</p>
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500">No site location. Edit the project in <Link to="/admin/projects" className="font-semibold text-brand-700">Projects</Link> to add latitude/longitude and turn on the geofence.</p>
+      )}
+      <h4 className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-slate-400">Checked in here today</h4>
+      {p.site_attendance.map((a) => (
+        <div key={a.employee_id} className="flex items-center justify-between gap-2 py-1 text-sm">
+          <span className="truncate">{a.name}</span>
+          <span className="flex items-center gap-1.5 text-xs text-slate-500">
+            {String(a.check_in).slice(11, 16)}{a.check_out ? `–${String(a.check_out).slice(11, 16)}` : ''}
+            {a.check_in_geofence && <span className={cn('badge', GEO_TONE[a.check_in_geofence])}>{titleCase(a.check_in_geofence)}</span>}
+          </span>
+        </div>
+      ))}
+      {!p.site_attendance.length && <p className="text-sm text-slate-500">Nobody yet.</p>}
+    </div>
+  );
+}
+
+/** Employees assigned to the project – they see it in the mobile app and can check in at its geofence */
+function ProjectMembers({ p, onChange }) {
+  const { hasRole } = useAuth();
+  const canEdit = hasRole('hr');
+  const confirm = useConfirm();
+  const [adding, setAdding] = useState(false);
+  const [pickIds, setPickIds] = useState([]);
+  const [role, setRole] = useState('');
+  const { data: emps } = useFetch(adding ? '/hr/employees' : null, { all: 1, status: 'active' }, { skip: !adding });
+  const memberIds = new Set(p.members.map((m) => m.employee_id));
+  const available = (emps?.data || []).filter((e) => !memberIds.has(e.id));
+  const add = async () => {
+    try {
+      await api.post(`/work/projects/${p.id}/members`, { employee_ids: pickIds, role: role || null });
+      toast.success('Members added');
+      setAdding(false);
+      setPickIds([]);
+      setRole('');
+      onChange();
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+  };
+  const remove = async (m) => {
+    if (!(await confirm({ text: `Remove ${m.name} from this project? They will no longer be able to check in at its site.` }))) return;
+    try {
+      await api.delete(`/work/projects/${p.id}/members/${m.employee_id}`);
+      onChange();
+    } catch (e) {
+      toast.error(errMsg(e));
+    }
+  };
+  return (
+    <div className="card p-5">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="flex items-center gap-2 font-semibold"><Users className="h-4 w-4" /> Members</h3>
+        {canEdit && <button className="text-xs font-semibold text-brand-700" onClick={() => setAdding(true)}>+ Add</button>}
+      </div>
+      {p.members.map((m) => (
+        <div key={m.employee_id} className="flex items-center justify-between gap-2 py-1.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <Avatar src={m.photo} name={m.name} size="h-7 w-7" className="text-[9px]" />
+            <div className="min-w-0"><p className="truncate text-sm font-medium">{m.name}</p><p className="truncate text-xs text-slate-500">{m.role || m.designation_name || m.emp_code}</p></div>
+          </div>
+          {canEdit && <button className="rounded-lg p-1.5 text-slate-400 hover:text-red-600" onClick={() => remove(m)} title="Remove"><X className="h-4 w-4" /></button>}
+        </div>
+      ))}
+      {!p.members.length && <p className="text-sm text-slate-500">No members. Add employees so they can see this project in the mobile app and check in at its site.</p>}
+      <Modal open={adding} onClose={() => setAdding(false)} title="Add project members" size="max-w-md" footer={<><button className="btn-outline" onClick={() => setAdding(false)}>Cancel</button><button className="btn-primary" disabled={!pickIds.length} onClick={add}><UserPlus className="h-4 w-4" /> Add {pickIds.length || ''}</button></>}>
+        <div className="space-y-4">
+          <Field label="Role on this project (optional)"><input className="input" value={role} onChange={(e) => setRole(e.target.value)} placeholder="Site engineer, Supervisor…" /></Field>
+          <div className="max-h-72 space-y-1 overflow-y-auto">
+            {available.map((e) => (
+              <label key={e.id} className="flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 hover:bg-slate-50">
+                <input type="checkbox" checked={pickIds.includes(e.id)} onChange={(ev) => setPickIds((ids) => (ev.target.checked ? [...ids, e.id] : ids.filter((x) => x !== e.id)))} />
+                <Avatar src={e.photo} name={e.name} size="h-7 w-7" className="text-[9px]" />
+                <span className="text-sm">{e.name} <span className="text-xs text-slate-500">{e.emp_code}</span></span>
+              </label>
+            ))}
+            {emps && !available.length && <p className="text-sm text-slate-500">Every active employee is already a member.</p>}
+            {!emps && <Spinner />}
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 export function ProjectView() {
   const { id } = useParams();
-  const { data: p, loading } = useFetch(`/work/projects/${id}/overview`);
+  const { data: p, loading, reload } = useFetch(`/work/projects/${id}/overview`);
   if (loading || !p) return <PageLoader />;
   const done = p.tasks.filter((t) => t.status === 'done').length;
   const pct = p.tasks.length ? Math.round((done / p.tasks.length) * 100) : 0;
@@ -432,7 +534,7 @@ export function ProjectView() {
         <StatCard label="Budget" value={money(p.budget, 0)} icon={FolderKanban} />
         <StatCard label="Billed" value={money(billed, 0)} icon={Receipt} tone="violet" />
         <StatCard label="Received" value={money(received, 0)} icon={ShieldCheck} tone="green" />
-        <StatCard label="Team" value={p.team.length} icon={Users} tone="amber" />
+        <StatCard label="Team" value={new Set([...p.team.map((t) => t.id), ...p.members.map((m) => m.employee_id)]).size} icon={Users} tone="amber" />
       </div>
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="card p-5 lg:col-span-2">
@@ -448,6 +550,8 @@ export function ProjectView() {
           </div>
         </div>
         <div className="space-y-6">
+          <ProjectSite p={p} />
+          <ProjectMembers p={p} onChange={reload} />
           <div className="card p-5">
             <div className="mb-3 flex items-center justify-between"><h3 className="font-semibold">Agreements</h3><Link to={`/admin/contracts/new?project=${p.id}${p.client_id ? `&client=${p.client_id}` : ''}`} className="text-xs font-semibold text-brand-700">+ New</Link></div>
             {p.contracts.map((k) => <Link key={k.id} to={`/admin/contracts/${k.id}`} className="flex items-center justify-between gap-2 py-1.5 text-sm hover:text-brand-700"><span className="truncate">{k.contract_no}</span><StatusBadge status={k.status} /></Link>)}

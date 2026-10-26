@@ -71,8 +71,17 @@ const SECTIONS = {
       { name: 'weekly_off', label: 'Weekly off days', hint: '0=Sun … 6=Sat. Comma separated, e.g. 0 or 0,6' },
       { name: 'salary_basic_pct', label: 'Basic % of salary', type: 'number' }, { name: 'salary_hra_pct', label: 'HRA % of salary', type: 'number' },
       { name: 'payroll_missing_as_absent', label: 'Treat unmarked working days as LOP', type: 'switch' },
-      { name: 'office_ip_whitelist', label: 'Restrict check-in to office IPs', hint: 'Comma separated public IPs. Leave empty to allow anywhere.', span: 2 },
+      { name: 'office_ip_whitelist', label: 'Restrict web check-in to office IPs', hint: 'Comma separated public IPs. Leave empty to allow anywhere. Not applied to the mobile app (use the geofence instead).', span: 2 },
       { name: 'birthday_wishes', label: 'Email birthday wishes to employees', type: 'switch' },
+      {
+        name: 'geofence_mode', label: 'Geofenced check-in', type: 'select', noEmpty: true, span: 2,
+        options: [{ value: 'off', label: 'Off – record location only' }, { value: 'flag', label: 'Flag – allow anywhere, mark check-ins outside the geofence' }, { value: 'enforce', label: 'Enforce – block check-in outside the office / assigned project sites' }],
+        hint: 'Geofences are the office location below plus every project site (Projects › Edit) the employee is a member of. Check-out is never blocked, only flagged.',
+      },
+      { name: 'office_latitude', label: 'Office latitude', placeholder: '22.0136', hint: 'Google Maps › right-click the office › copy the numbers' }, { name: 'office_longitude', label: 'Office longitude', placeholder: '81.2459' },
+      { name: 'office_geofence_radius', label: 'Office geofence radius (metres)', type: 'number' }, { name: 'geofence_max_accuracy', label: 'Reject GPS fixes less accurate than (metres)', type: 'number', hint: 'Enforce mode only. 0 = accept any accuracy.' },
+      { name: 'geofence_allow_wfh', label: 'Allow "Work from home" check-in outside the geofence', type: 'switch' },
+      { name: 'attendance_selfie_required', label: 'Require a selfie to check in from the mobile app', type: 'switch' },
     ],
   },
   integrations: {

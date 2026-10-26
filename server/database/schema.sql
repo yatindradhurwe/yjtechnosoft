@@ -491,6 +491,20 @@ CREATE TABLE IF NOT EXISTS attendance (
   check_in_ip VARCHAR(60),
   check_in_location VARCHAR(120),
   check_out_location VARCHAR(120),
+  project_id INT NULL,
+  source VARCHAR(20) NULL,
+  check_in_lat DECIMAL(10,7) NULL,
+  check_in_lng DECIMAL(10,7) NULL,
+  check_in_accuracy INT NULL,
+  check_in_distance INT NULL,
+  check_in_geofence VARCHAR(20) NULL,
+  check_in_photo VARCHAR(255) NULL,
+  check_out_lat DECIMAL(10,7) NULL,
+  check_out_lng DECIMAL(10,7) NULL,
+  check_out_accuracy INT NULL,
+  check_out_distance INT NULL,
+  check_out_geofence VARCHAR(20) NULL,
+  device_info VARCHAR(255) NULL,
   notes VARCHAR(255),
   marked_by INT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -541,7 +555,24 @@ CREATE TABLE IF NOT EXISTS projects (
   deadline DATE NULL,
   budget DECIMAL(12,2) DEFAULT 0,
   status ENUM('planning','in_progress','on_hold','completed','cancelled') DEFAULT 'in_progress',
+  site_address VARCHAR(255) NULL,
+  latitude DECIMAL(10,7) NULL,
+  longitude DECIMAL(10,7) NULL,
+  geofence_radius INT DEFAULT 200,
+  geofence_enabled TINYINT(1) DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Employees assigned to a project (they can check in at its geofence)
+CREATE TABLE IF NOT EXISTS project_members (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  project_id INT NOT NULL,
+  employee_id INT NOT NULL,
+  role VARCHAR(80) NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_project_employee (project_id, employee_id),
+  FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+  FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS tasks (
@@ -578,6 +609,7 @@ CREATE TABLE IF NOT EXISTS daily_reports (
   hours DECIMAL(4,1) DEFAULT 0,
   plan_tomorrow TEXT,
   blockers TEXT,
+  project_id INT NULL,
   status ENUM('submitted','reviewed') DEFAULT 'submitted',
   reviewer_remarks VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -780,6 +812,28 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   user_agent VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uniq_endpoint (endpoint(255))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ---------------------------------------------------------------------------
+-- Mobile app (Flutter) sessions: one row per signed-in device
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS mobile_sessions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  refresh_token_hash CHAR(64) NOT NULL,
+  device_id VARCHAR(120),
+  device_name VARCHAR(150),
+  platform VARCHAR(20),
+  app_version VARCHAR(30),
+  fcm_token VARCHAR(255),
+  ip VARCHAR(60),
+  expires_at DATETIME NOT NULL,
+  last_used_at DATETIME NULL,
+  revoked_at DATETIME NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_refresh (refresh_token_hash),
+  INDEX (user_id),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 1;
