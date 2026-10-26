@@ -10,13 +10,17 @@ self.addEventListener('push', (event) => {
     data = { title: 'Notification', body: event.data && event.data.text() };
   }
   event.waitUntil(
-    self.registration.showNotification(data.title || 'YJTechnosoft', {
-      body: data.body || '',
-      icon: '/favicon.png',
-      badge: '/favicon.png',
-      tag: data.tag,
-      data: { link: data.link || '/admin' },
-    })
+    Promise.all([
+      self.registration.showNotification(data.title || 'YJTechnosoft', {
+        body: data.body || '',
+        icon: '/favicon.png',
+        badge: '/favicon.png',
+        tag: data.tag,
+        data: { link: data.link || '/admin' },
+      }),
+      // open tabs refresh their notification bell right away
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => list.forEach((c) => c.postMessage({ type: 'push', notification: data }))),
+    ])
   );
 });
 

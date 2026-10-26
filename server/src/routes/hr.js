@@ -6,7 +6,7 @@ const { asyncHandler, HttpError } = require('../middleware/error');
 const { pick, toDateStr, round2, formatDate } = require('../utils/helpers');
 const { getSettings } = require('../utils/settings');
 const { sendEmail, notifyAdmins } = require('../services/notify');
-const { notifyRoles, notifyEmployee, fire } = require('../services/push');
+const { notifyRoles, notifyEmployee, notifyEmployees, fire } = require('../services/push');
 const attendance = require('../services/attendance');
 
 const router = express.Router();
@@ -425,6 +425,7 @@ router.patch(
         body: `${lr.type_name}: ${formatDate(lr.from_date)} to ${formatDate(lr.to_date)}${remarks ? ` – ${remarks}` : ''}`,
         link: '/admin/my/leaves',
         type: 'leave',
+        data: { leave_id: lr.id },
       }));
     }
     if (lr.email && status !== 'pending') {
@@ -441,12 +442,18 @@ router.patch(
   })
 );
 
+/** Employee withdraws a pending request; HR is told so they don't act on it. Shared with the mobile API. */
+async function cancelLeaveRequest(empId, id, actorUserId) {
+  const r = await query("UPDATE leave_requests SET status = 'cancelled' WHERE id = ? AND employee_id = ? AND status = 'pending'", [id, empId]);
+  if (!r.affectedRows) throw new HttpError(400, 'Only your pending requests can be cancelled', 'CANNOT_CANCEL');
+  const lr = await one('SELECT l.from_date, l.to_date, e.name FROM leave_requests l JOIN employees e ON e.id = l.employee_id WHERE l.id = ?', [id]);
+  fire(notifyRoles(['hr'], { title: `↩️ Leave request withdrawn – ${lr.name}`, body: `${formatDate(lr.from_date)} to ${formatDate(lr.to_date)}`, link: '/admin/leaves', type: 'leave' }, { excludeUserId: actorUserId }));
+}
+
 router.patch(
   '/leaves/:id/cancel',
   asyncHandler(async (req, res) => {
-    const empId = requireEmployee(req);
-    const r = await query("UPDATE leave_requests SET status = 'cancelled' WHERE id = ? AND employee_id = ? AND status = 'pending'", [req.params.id, empId]);
-    if (!r.affectedRows) throw new HttpError(400, 'Only your pending requests can be cancelled');
+    await cancelLeaveRequest(requireEmployee(req), req.params.id, req.user.id);
     res.json({ message: 'Leave request cancelled' });
   })
 );
@@ -541,6 +548,7 @@ router.post(
     );
     let created = 0;
     let skipped = 0;
+    const generated = [];
     for (const emp of emps) {
       const existing = await one('SELECT * FROM payslips WHERE employee_id = ? AND month = ? AND year = ?', [emp.id, month, year]);
       if (existing && existing.status === 'paid') { skipped += 1; continue; }
@@ -548,7 +556,10 @@ router.post(
       if (existing) await query('UPDATE payslips SET ? WHERE id = ?', [p, existing.id]);
       else await query('INSERT INTO payslips SET ?', [p]);
       created += 1;
+      generated.push(emp.id);
     }
+    const period = new Date(year, month - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    fire(notifyEmployees(generated, { title: `💰 Your payslip for ${period} is ready`, body: 'Open My payslips to view or download it.', link: '/admin/my/payslips', type: 'payslip' }));
     res.json({ message: `${created} payslip(s) generated${skipped ? `, ${skipped} already paid` : ''}` });
   })
 );
@@ -575,7 +586,14 @@ router.patch(
   '/payslips/:id/paid',
   authorize('hr', 'accounts'),
   asyncHandler(async (req, res) => {
-    await query("UPDATE payslips SET status = 'paid', paid_on = ? WHERE id = ?", [req.body.paid_on || toDateStr(), req.params.id]);
+    const p = await one('SELECT id, employee_id, month, year, status FROM payslips WHERE id = ?', [req.params.id]);
+    if (!p) throw new HttpError(404, 'Payslip not found');
+    const paidOn = req.body.paid_on || toDateStr();
+    await query("UPDATE payslips SET status = 'paid', paid_on = ? WHERE id = ?", [paidOn, p.id]);
+    if (p.status !== 'paid') {
+      const period = new Date(p.year, p.month - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+      fire(notifyEmployee(p.employee_id, { title: `✅ Salary for ${period} paid`, body: `Paid on ${formatDate(paidOn)}`, link: '/admin/my/payslips', type: 'payslip', data: { payslip_id: p.id } }));
+    }
     res.json({ message: 'Marked as paid' });
   })
 );
@@ -592,4 +610,5 @@ router.delete(
 module.exports = router;
 module.exports.leaveBalance = leaveBalance;
 module.exports.createLeaveRequest = createLeaveRequest;
+module.exports.cancelLeaveRequest = cancelLeaveRequest;
 module.exports.countLeaveDays = countLeaveDays;

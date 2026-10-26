@@ -5,7 +5,7 @@ const { asyncHandler, HttpError } = require('../middleware/error');
 const { pick, toDateStr, toDateTimeStr, formatDate } = require('../utils/helpers');
 const { sendEmail } = require('../services/notify');
 const { getSettings } = require('../utils/settings');
-const { notifyEmployee, notifyUsers, fire } = require('../services/push');
+const { notifyEmployee, notifyUsers, notifyRoles, fire } = require('../services/push');
 
 const router = express.Router();
 router.use(authenticate);
@@ -24,6 +24,7 @@ async function notifyAssignee(taskId, actor) {
     body: `${t.priority.toUpperCase()} priority${t.due_date ? ` · due ${formatDate(t.due_date)}` : ''} · by ${actor.name}`,
     link: '/admin/my/tasks',
     type: 'task',
+    data: { task_id: t.id },
   }));
   if (!t.assignee_email) return;
   const s = await getSettings();
@@ -42,6 +43,24 @@ async function notifyAssignee(taskId, actor) {
     refId: t.id,
     userId: actor.id,
   });
+}
+
+const STATUS_LABEL = { todo: 'To do', in_progress: 'In progress', review: 'Review', done: 'Done', blocked: 'Blocked' };
+
+/** Status changed: tell the other side (assigner ↔ assignee). Shared with the mobile API. */
+async function notifyTaskStatus(t, status, actor) {
+  if (!status || status === t.status) return;
+  const assignee = t.assigned_to ? await one('SELECT id FROM users WHERE employee_id = ?', [t.assigned_to]) : null;
+  const targets = [assignee && assignee.id, t.assigned_by].filter((id) => id && id !== actor.id);
+  if (!targets.length) return;
+  const title = status === 'done' ? `✅ ${actor.name} completed “${t.title}”`
+    : status === 'blocked' ? `⛔ ${actor.name} marked “${t.title}” as blocked`
+      : `🔄 ${actor.name} moved “${t.title}” to ${STATUS_LABEL[status] || status}`;
+  const body = `${STATUS_LABEL[t.status] || t.status} → ${STATUS_LABEL[status] || status}`;
+  await Promise.all(targets.map((id) => notifyUsers([id], {
+    title, body, type: 'task', data: { task_id: t.id },
+    link: assignee && id === assignee.id ? '/admin/my/tasks' : '/admin/tasks',
+  })));
 }
 
 // ============================================================ TASKS
@@ -124,6 +143,7 @@ router.put(
     } else if (data.status && data.status !== 'done') data.completed_at = null;
     await query('UPDATE tasks SET ? WHERE id = ?', [data, t.id]);
     if (data.assigned_to && Number(data.assigned_to) !== t.assigned_to) notifyAssignee(t.id, req.user).catch(() => {});
+    else fire(notifyTaskStatus(t, data.status, req.user));
     res.json(await one(`SELECT ${TASK_SELECT} FROM ${TASK_FROM} WHERE t.id = ?`, [t.id]));
   })
 );
@@ -145,7 +165,11 @@ async function addTaskComment(t, user, comment) {
   const r = await query('INSERT INTO task_comments SET ?', [{ task_id: t.id, user_id: user.id, comment }]);
   const assignee = t.assigned_to ? await one('SELECT id FROM users WHERE employee_id = ?', [t.assigned_to]) : null;
   const targets = [assignee && assignee.id, t.assigned_by].filter((id) => id && id !== user.id);
-  fire(notifyUsers(targets, { title: `💬 ${user.name} commented on “${t.title}”`, body: String(comment).slice(0, 140), link: assignee && targets.includes(assignee.id) ? '/admin/my/tasks' : '/admin/tasks', type: 'task' }));
+  // assignee and assigner open different pages
+  fire(Promise.all(targets.map((id) => notifyUsers([id], {
+    title: `💬 ${user.name} commented on “${t.title}”`, body: String(comment).slice(0, 140), type: 'task', data: { task_id: t.id },
+    link: assignee && id === assignee.id ? '/admin/my/tasks' : '/admin/tasks',
+  }))));
   return r.insertId;
 }
 
@@ -227,11 +251,12 @@ router.delete(
 
 // ============================================================ DAILY REPORTS
 /** Insert or update the employee's report for a day. Shared with the mobile API. */
-async function saveDailyReport(empId, body) {
+async function saveDailyReport(empId, body, actorUserId) {
   const data = pick(body, ['report_date', 'work_done', 'hours', 'plan_tomorrow', 'blockers', 'project_id']);
   if (!data.work_done) throw new HttpError(400, 'Please describe the work done', 'VALIDATION_ERROR');
   data.report_date = data.report_date || toDateStr();
   if (data.report_date > toDateStr()) throw new HttpError(400, 'Cannot submit a report for a future date', 'VALIDATION_ERROR');
+  const before = await one('SELECT id FROM daily_reports WHERE employee_id = ? AND report_date = ?', [empId, data.report_date]);
   // keep the saved project when the client doesn't send one (the web form has no project field)
   await query(
     `INSERT INTO daily_reports (employee_id, report_date, work_done, hours, plan_tomorrow, blockers, project_id)
@@ -240,6 +265,15 @@ async function saveDailyReport(empId, body) {
        blockers = VALUES(blockers), ${'project_id' in data ? 'project_id = VALUES(project_id),' : ''} status = 'submitted'`,
     [empId, data.report_date, data.work_done, data.hours || 0, data.plan_tomorrow || null, data.blockers || null, data.project_id || null]
   );
+  if ((await getSettings()).notify_daily_reports !== '0') {
+    const emp = await one('SELECT name FROM employees WHERE id = ?', [empId]);
+    fire(notifyRoles(['hr'], {
+      title: `📝 ${before ? 'Daily report updated' : 'Daily report'} – ${emp.name}`,
+      body: `${formatDate(data.report_date)}${data.hours ? ` · ${data.hours}h` : ''}${data.blockers ? ' · ⚠️ has blockers' : ''} – ${String(data.work_done).replace(/<[^>]+>/g, ' ').slice(0, 120)}`,
+      link: '/admin/reports',
+      type: 'report',
+    }, { excludeUserId: actorUserId }));
+  }
   return one('SELECT * FROM daily_reports WHERE employee_id = ? AND report_date = ?', [empId, data.report_date]);
 }
 
@@ -275,7 +309,7 @@ router.post(
   '/reports',
   asyncHandler(async (req, res) => {
     if (!req.user.employee_id) throw new HttpError(400, 'Your login is not linked to an employee profile');
-    await saveDailyReport(req.user.employee_id, req.body);
+    await saveDailyReport(req.user.employee_id, req.body, req.user.id);
     res.status(201).json({ message: 'Daily report submitted' });
   })
 );
@@ -284,7 +318,16 @@ router.patch(
   '/reports/:id/review',
   authorize('hr'),
   asyncHandler(async (req, res) => {
-    await query("UPDATE daily_reports SET status = 'reviewed', reviewer_remarks = ? WHERE id = ?", [req.body.remarks || null, req.params.id]);
+    const r = await one('SELECT id, employee_id, report_date FROM daily_reports WHERE id = ?', [req.params.id]);
+    if (!r) throw new HttpError(404, 'Report not found');
+    await query("UPDATE daily_reports SET status = 'reviewed', reviewer_remarks = ? WHERE id = ?", [req.body.remarks || null, r.id]);
+    fire(notifyEmployee(r.employee_id, {
+      title: `👍 ${req.user.name} reviewed your report for ${formatDate(r.report_date)}`,
+      body: req.body.remarks ? String(req.body.remarks).slice(0, 200) : 'No remarks',
+      link: '/admin/my/reports',
+      type: 'report',
+      data: { report_id: r.id },
+    }));
     res.json({ message: 'Report reviewed' });
   })
 );
@@ -306,4 +349,4 @@ router.get(
 );
 
 module.exports = router;
-Object.assign(module.exports, { TASK_SELECT, TASK_FROM, notifyAssignee, addTaskComment, saveDailyReport });
+Object.assign(module.exports, { TASK_SELECT, TASK_FROM, notifyAssignee, notifyTaskStatus, addTaskComment, saveDailyReport });

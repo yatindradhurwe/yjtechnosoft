@@ -208,9 +208,13 @@ The team gets a notification when a client **opens** an invoice, quotation or ag
 * **Project page** (Projects › Open) – tasks, team, agreements, documents, quotations and invoices for the project in one place. Invoices and quotations can be linked to a project.
 
 ### Push notifications
-* Click the **bell** in the admin header and choose **Enable push notifications**. This works per device and browser, including Android Chrome and installed iOS web apps.
-* Users are notified of: new leads and quote requests, job applications, leave requests and decisions, task assignments and comments, payments received, clients viewing or accepting documents, expiring servers and agreements, and announcements.
-* VAPID keys are generated automatically on first use. Web push needs the site on **HTTPS** (localhost works for testing).
+Every notification goes to the in-app bell, to **browser push** on each device where the user turned it on, and to the **employee mobile app** (FCM).
+* **Web:** the panel asks once after login. Users can also click the **bell** › **Enable push notifications**. This works per device and browser, including Android Chrome and installed iOS web apps. Open tabs update the bell instantly. VAPID keys are generated automatically, and web push needs **HTTPS** (localhost works for testing).
+* **Mobile app:** paste the Firebase service-account JSON in *Settings › Email / SMS / WhatsApp / Push › Push notifications*. The app sends its FCM token at login. Payload format: [docs/mobile-api.md §6.6](docs/mobile-api.md#66-push-notifications-fcm).
+* **Test:** use the bell's **Test** button for your own devices, or the test box in Settings to send to any user by email or phone. Either one says where the push was delivered.
+* **HR / managers are notified of:** leave requests and withdrawals, daily reports submitted or updated, status changes on tasks they assigned, task comments, check-ins outside the geofence or with a mock location, job applications, new leads and quote requests, payments, clients viewing or accepting documents, and expiring servers and agreements.
+* **Employees are notified of:** tasks assigned to them, comments and status changes on their tasks, leave approved or rejected, daily report reviewed, payslip ready, salary paid, HR letter issued, and announcements.
+* The daily-report and geofence alerts to HR can be turned off in the same settings card.
 
 ### Roles
 | Role | Access |

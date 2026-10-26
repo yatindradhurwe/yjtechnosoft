@@ -25,9 +25,11 @@ const { makeUploader, fileUrl, IMAGE_EXT } = require('../middleware/upload');
 const { getSettings } = require('../utils/settings');
 const { pick, toDateStr, toDateTimeStr } = require('../utils/helpers');
 const attendance = require('../services/attendance');
-const { leaveBalance, createLeaveRequest, countLeaveDays } = require('./hr');
-const { TASK_SELECT, TASK_FROM, addTaskComment, saveDailyReport } = require('./work');
+const { leaveBalance, createLeaveRequest, cancelLeaveRequest, countLeaveDays } = require('./hr');
+const { TASK_SELECT, TASK_FROM, notifyTaskStatus, addTaskComment, saveDailyReport } = require('./work');
 const { sendPasswordReset } = require('./auth');
+const { notifyUsers } = require('../services/push');
+const { deliveryMessage } = require('./notifications');
 
 const router = express.Router();
 
@@ -254,8 +256,12 @@ async function createSession(req, user, device = {}) {
     expires_at: toDateTimeStr(expires),
     last_used_at: toDateTimeStr(new Date()),
   }]);
+  if (device.fcm_token) await claimFcmToken(device.fcm_token, r.insertId);
   return { ...issueAccessToken(user, r.insertId), refresh_token: refresh, refresh_expires_at: iso(toDateTimeStr(expires)) };
 }
+
+// a push token belongs to one phone: detach it from older sessions (e.g. another employee who used this phone)
+const claimFcmToken = (token, sessionId) => query('UPDATE mobile_sessions SET fcm_token = NULL WHERE fcm_token = ? AND id <> ?', [String(token).slice(0, 255), sessionId]);
 
 const userSummary = (u) => ({ id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role });
 
@@ -319,6 +325,7 @@ router.get(
       timezone: process.env.TZ || 'Asia/Kolkata',
       utc_offset: TZ_OFFSET,
       server_time: iso(toDateTimeStr(new Date())),
+      push_enabled: !!s.fcm_service_account, // FCM is set up on the server – register the device token
     });
   })
 );
@@ -406,7 +413,9 @@ router.put(
   '/auth/device',
   asyncHandler(async (req, res) => {
     const data = pick(req.body, ['fcm_token', 'app_version', 'device_name', 'platform']);
+    if (data.fcm_token) data.fcm_token = String(data.fcm_token).slice(0, 255);
     if (Object.keys(data).length) await query('UPDATE mobile_sessions SET ? WHERE id = ?', [data, req.sessionId]);
+    if (data.fcm_token) await claimFcmToken(data.fcm_token, req.sessionId);
     ok(res, null, { message: 'Device updated' });
   })
 );
@@ -729,8 +738,7 @@ router.post(
 router.post(
   '/leaves/:id/cancel',
   asyncHandler(async (req, res) => {
-    const r = await query("UPDATE leave_requests SET status = 'cancelled' WHERE id = ? AND employee_id = ? AND status = 'pending'", [req.params.id, req.empId]);
-    if (!r.affectedRows) throw new HttpError(400, 'Only your pending requests can be cancelled', 'CANNOT_CANCEL');
+    await cancelLeaveRequest(req.empId, req.params.id, req.user.id);
     ok(res, await myLeave(req.empId, req.params.id), { message: 'Leave request cancelled' });
   })
 );
@@ -849,6 +857,7 @@ router.patch(
     if (data.status === 'done' && t.status !== 'done') { data.completed_at = toDateTimeStr(new Date()); data.progress = 100; }
     else if (data.status && data.status !== 'done') data.completed_at = null;
     await query('UPDATE tasks SET ? WHERE id = ?', [data, t.id]);
+    notifyTaskStatus(t, data.status, req.user).catch(() => {});
     ok(res, fmtTask(await myTask(req, t.id), req.user), { message: 'Task updated' });
   })
 );
@@ -898,7 +907,7 @@ router.post(
   asyncHandler(async (req, res) => {
     if (req.body.report_date) requireDate(req.body.report_date, 'report_date');
     if (req.body.project_id) await assertProjectAccess(req.empId, req.body.project_id);
-    const r = await saveDailyReport(req.empId, req.body);
+    const r = await saveDailyReport(req.empId, req.body, req.user.id);
     const full = await one('SELECT r.*, p.name AS project_name FROM daily_reports r LEFT JOIN projects p ON p.id = r.project_id WHERE r.id = ?', [r.id]);
     ok(res, fmtReport(full), { status: 201, message: 'Daily report submitted' });
   })
@@ -923,6 +932,16 @@ router.post(
   asyncHandler(async (req, res) => {
     await query('UPDATE notifications SET is_read = 1 WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
     ok(res, null, { message: 'Marked as read' });
+  })
+);
+
+// sends a test push to every device of the signed-in user (this phone included)
+router.post(
+  '/notifications/test',
+  asyncHandler(async (req, res) => {
+    const result = await notifyUsers([req.user.id], { title: 'Test notification 🔔', body: 'Push notifications are working on this phone.', link: '/admin', type: 'test' });
+    const out = await deliveryMessage(result);
+    ok(res, { web: result && result.web, mobile: result && result.mobile && { sent: result.mobile.sent, failed: result.mobile.failed, devices: result.mobile.devices } }, { message: out.message });
   })
 );
 

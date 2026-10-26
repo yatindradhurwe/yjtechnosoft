@@ -110,6 +110,10 @@ const SETTINGS = {
   campaign_reply_to: '',
   invoice_reminders: '0',
   birthday_wishes: '1',
+  // push notifications (web + mobile app)
+  fcm_service_account: '',
+  notify_daily_reports: '1',
+  notify_attendance_flags: '1',
 };
 
 const SERVICES = [

@@ -6,6 +6,7 @@ const { pick, toDateStr, formatDate, formatMoney, renderTemplate } = require('..
 const { nextNumber } = require('../utils/numbering');
 const { getSettings } = require('../utils/settings');
 const { sendEmail, sendWhatsApp, sendSMS } = require('../services/notify');
+const { notifyEmployee, fire } = require('../services/push');
 
 const router = express.Router();
 router.use(authenticate);
@@ -263,6 +264,13 @@ router.post(
   })
 );
 
+/** Letters show up in the employee's "My letters" once they leave draft – tell them */
+function notifyLetter(before, after) {
+  if (!after.employee_id || ['draft', 'revoked'].includes(after.status)) return;
+  if (before && Number(before.employee_id) === Number(after.employee_id) && !['draft', 'revoked'].includes(before.status)) return;
+  fire(notifyEmployee(after.employee_id, { title: `📄 New letter: ${after.title}`, body: 'Open My letters to view or download it.', link: '/admin/my/letters', type: 'letter', data: { letter_id: after.id } }));
+}
+
 async function saveLetter(req, id) {
   const b = req.body;
   if (!b.recipient_name || !b.body || !b.title) throw new HttpError(400, 'Recipient, title and letter body are required');
@@ -283,7 +291,9 @@ async function saveLetter(req, id) {
   };
   if (id) {
     if (b.letter_no) row.letter_no = b.letter_no;
+    const before = await one('SELECT employee_id, status FROM letters WHERE id = ?', [id]);
     await query('UPDATE letters SET ? WHERE id = ?', [row, id]);
+    notifyLetter(before, { ...row, id });
     return id;
   }
   row.letter_no = b.letter_no || (await nextNumber('letter', new Date(row.issue_date)));
@@ -292,6 +302,7 @@ async function saveLetter(req, id) {
   if (row.application_id && ['offer', 'internship_offer'].includes(row.type)) {
     await query("UPDATE job_applications SET stage = 'offered' WHERE id = ? AND stage NOT IN ('hired')", [row.application_id]);
   }
+  notifyLetter(null, { ...row, id: r.insertId });
   return r.insertId;
 }
 
@@ -303,7 +314,10 @@ router.patch(
   authorize('hr'),
   asyncHandler(async (req, res) => {
     if (!['draft', 'issued', 'sent', 'accepted', 'revoked'].includes(req.body.status)) throw new HttpError(400, 'Invalid status');
-    await query('UPDATE letters SET status = ? WHERE id = ?', [req.body.status, req.params.id]);
+    const before = await one('SELECT id, employee_id, status, title FROM letters WHERE id = ?', [req.params.id]);
+    if (!before) throw new HttpError(404, 'Letter not found');
+    await query('UPDATE letters SET status = ? WHERE id = ?', [req.body.status, before.id]);
+    notifyLetter(before, { ...before, status: req.body.status });
     res.json({ message: 'Status updated' });
   })
 );

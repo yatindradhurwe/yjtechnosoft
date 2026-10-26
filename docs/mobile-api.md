@@ -144,6 +144,7 @@ Everything is configured from the existing panel (`/admin`). No extra admin app 
 | **Tasks** | *Work › Tasks* (kanban) | Tasks assigned to an employee appear in the app. A push and email go out on assignment. |
 | **Leave approval** | *HR › Leaves* | Approve or reject. The employee gets an in-app notification and an email. |
 | **Attendance register** | *HR › Attendance* | Shows the source (App/Web), project, geofence result with distance, map links and selfie for each check-in. |
+| **Push notifications** | *Settings › Email / SMS / WhatsApp / Push › Push notifications* | Paste the Firebase service-account JSON (same Firebase project as the app). See [6.6](#66-push-notifications-fcm). |
 | **Lost phone** | *HR › Employees › (open employee) › Mobile app* | Sign out one device or all. Takes effect immediately. |
 | **Announcements, holidays, leave types** | *HR* menu | Shown in the app. |
 
@@ -212,8 +213,10 @@ Company branding and server time for the splash and login screens.
   "api_version": "v1", "company_name": "YJTECHNOSOFT PRIVATE LIMITED",
   "logo_url": "https://yjtechnosoft.com/logo.png",
   "support_email": "yjtechnosoft@gmail.com", "support_phone": "+91 7000796585",
-  "timezone": "Asia/Kolkata", "utc_offset": "+05:30", "server_time": "2026-10-26T16:02:04+05:30" } }
+  "timezone": "Asia/Kolkata", "utc_offset": "+05:30", "server_time": "2026-10-26T16:02:04+05:30",
+  "push_enabled": true } }
 ```
+`push_enabled` is `true` when the server has Firebase set up. Then ask for notification permission and send the FCM token.
 
 #### `POST /auth/login` 🔓
 | Field | Type | Req | Notes |
@@ -251,7 +254,7 @@ Body `{ "current_password": "…", "new_password": "min 6 chars" }`. Signs out *
 Errors: `VALIDATION_ERROR`, `INVALID_CREDENTIALS`.
 
 #### `PUT /auth/device` 🔒
-Body any of `{ "fcm_token", "app_version", "device_name", "platform" }`. Call it when the FCM token rotates or after an app update.
+Body any of `{ "fcm_token", "app_version", "device_name", "platform" }`. Call it when the FCM token rotates (`onTokenRefresh`) or after an app update. A token belongs to one session: sending it here detaches it from any other signed-in account on the same phone. Signing out stops pushes to that phone.
 
 #### `GET /auth/sessions` 🔒
 Signed-in devices for a "Manage devices" screen:
@@ -475,9 +478,22 @@ When HR approves a leave, it is written into attendance automatically, and the e
 | `GET /notifications?unread=1&page=&limit=` 🔒 | `[ { id, type, title, body, link, is_read, created_at } ]`, with `meta.unread` for the badge. `type`: `leave`, `task`, `announcement`, `general`… `link` is a web-panel path; map `type` to an app screen instead. |
 | `POST /notifications/{id}/read` 🔒 | Mark one as read |
 | `POST /notifications/read-all` 🔒 | Mark all as read |
+| `POST /notifications/test` 🔒 | Sends a test push to every device of the signed-in user. `data: { web: {sent, devices}, mobile: {sent, failed, devices} }`, and `message` explains what to fix when nothing was delivered. |
 | `GET /announcements?page=&limit=` 🔒 | `[ { id, title, message, priority, created_at } ]`, where priority is `normal | important` |
 
-The employee gets notifications for task assignments and comments, leave decisions, and announcements.
+Every notification is saved in-app (above) **and** pushed to the employee's signed-in phones through FCM, see [6.6](#66-push-notifications-fcm). The employee is notified about:
+
+| `type` | When |
+|--------|------|
+| `task` | Task assigned to them, a comment on their task, or a manager changing its status |
+| `leave` | Leave approved or rejected |
+| `report` | Their daily report was reviewed |
+| `payslip` | Payslip generated, salary marked paid |
+| `letter` | HR letter issued to them |
+| `announcement` | New announcement |
+| `test` | Test push |
+
+HR, managers and admins (who can also sign in to the app) are notified about: leave requests and withdrawals, daily reports submitted, task status changes on tasks they assigned, task comments, check-ins outside the geofence or with a mock location, new leads, job applications, payments and expiring services.
 
 ---
 
@@ -671,10 +687,64 @@ final inside = nearest.$2 <= nearest.$1['radius'];
 | Daily report | `GET /reports?date=<today>`, `POST /reports` |
 | Leaves | `GET /leaves/balance`, `GET /leaves`, `GET /leaves/types`, `GET /leaves/calculate`, `POST /leaves`, `POST /leaves/{id}/cancel` |
 | Holidays | `GET /holidays?year=` |
-| Notifications | `GET /notifications`, `POST /notifications/read-all` |
+| Notifications | `GET /notifications`, `POST /notifications/read-all`, `POST /notifications/test` |
 | Profile / settings | `GET /me`, `PUT /me`, `POST /me/photo`, `PUT /auth/password`, `GET /auth/sessions`, `POST /auth/logout` |
 
-### 6.6 Tips
+### 6.6 Push notifications (FCM)
+
+Add `firebase_core`, `firebase_messaging` and `flutter_local_notifications` (for foreground banners on Android). Register the app in the **same Firebase project** whose service account is pasted in the admin settings.
+
+1. After login, call `FirebaseMessaging.instance.requestPermission()`, then `getToken()`. Send it as `fcm_token` in `POST /auth/login` or in `PUT /auth/device`.
+2. Listen to `onTokenRefresh` and send the new token with `PUT /auth/device`.
+3. Create an Android notification channel with id **`default`** (the server sends `android.notification.channel_id = "default"`).
+
+Each message has a `notification` (title, body), so the system shows it when the app is in the background or killed. It also has a `data` block, where every value is a string:
+
+```json
+{
+  "type": "task",
+  "screen": "tasks",
+  "notification_id": "1532",
+  "task_id": "88",
+  "link": "/admin/my/tasks",
+  "click_action": "FLUTTER_NOTIFICATION_CLICK"
+}
+```
+
+| Key | Use |
+|-----|-----|
+| `screen` | Where to go on tap: `tasks`, `leaves`, `reports`, `attendance`, `announcements`, `payslips`, `letters` or `notifications` (default) |
+| `notification_id` | Call `POST /notifications/{id}/read` after opening |
+| `task_id` / `leave_id` / `report_id` / `payslip_id` / `letter_id` | Present when the push is about one record: open its detail screen |
+| `type` | Same as `type` in `GET /notifications` |
+| `link` | Web-panel path. Ignore it in the app. |
+
+On iOS, `aps.badge` is set to the user's unread count.
+
+```dart
+FirebaseMessaging.onMessage.listen((m) {            // app in foreground
+  showLocalNotification(m.notification?.title, m.notification?.body, payload: jsonEncode(m.data));
+  refreshUnreadBadge();
+});
+FirebaseMessaging.onMessageOpenedApp.listen((m) => openFromPush(m.data));
+final initial = await FirebaseMessaging.instance.getInitialMessage();  // launched by a tap
+if (initial != null) openFromPush(initial.data);
+
+void openFromPush(Map<String, dynamic> d) {
+  if (d['notification_id'] != null) api.post('/notifications/${d['notification_id']}/read');
+  switch (d['screen']) {
+    case 'tasks': d['task_id'] != null ? router.push('/tasks/${d['task_id']}') : router.push('/tasks'); break;
+    case 'leaves': router.push('/leaves'); break;
+    case 'reports': router.push('/reports'); break;
+    case 'announcements': router.push('/announcements'); break;
+    default: router.push('/notifications');
+  }
+}
+```
+
+Use `POST /notifications/test` from a debug menu to check the setup end to end.
+
+### 6.7 Tips
 
 * Use `server_time` from `/dashboard` or `/attendance/today` for the live clock, and don't rely on the phone's clock. The server stamps check-in and check-out times itself.
 * After a successful check-in or check-out, refresh `/dashboard`.

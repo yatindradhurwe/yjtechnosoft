@@ -1,10 +1,12 @@
 const express = require('express');
-const { query } = require('../config/db');
+const { query, one } = require('../config/db');
 const { authenticate, authorize } = require('../middleware/auth');
 const { asyncHandler, HttpError } = require('../middleware/error');
 const { getSettings, setSettings } = require('../utils/settings');
 const { makeUploader, fileUrl } = require('../middleware/upload');
 const { sendEmail, sendSMS, sendWhatsApp } = require('../services/notify');
+const { notifyUsers } = require('../services/push');
+const { deliveryMessage } = require('./notifications');
 
 const router = express.Router();
 router.use(authenticate);
@@ -15,7 +17,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const all = await getSettings(true);
     if (req.user.role !== 'admin') {
-      ['smtp_pass', 'sms_api_key', 'twilio_token', 'whatsapp_token'].forEach((k) => delete all[k]);
+      ['smtp_pass', 'sms_api_key', 'twilio_token', 'whatsapp_token', 'fcm_service_account', 'vapid_private_key'].forEach((k) => delete all[k]);
     }
     res.json(all);
   })
@@ -26,6 +28,15 @@ router.put(
   authorize(),
   asyncHandler(async (req, res) => {
     if (!req.body || typeof req.body !== 'object') throw new HttpError(400, 'Invalid settings');
+    if (req.body.fcm_service_account) {
+      let sa;
+      try {
+        sa = JSON.parse(req.body.fcm_service_account);
+      } catch {
+        throw new HttpError(400, 'Firebase service account must be the JSON file contents');
+      }
+      if (!sa.project_id || !sa.client_email || !sa.private_key) throw new HttpError(400, 'Firebase service account JSON is missing project_id, client_email or private_key');
+    }
     await setSettings(req.body);
     res.json(await getSettings(true));
   })
@@ -38,6 +49,13 @@ router.post(
     const { to } = req.body;
     if (!to) throw new HttpError(400, 'Recipient is required');
     const message = 'This is a test message from your YJTechnosoft admin panel. Integration is working!';
+    if (req.params.channel === 'push') {
+      const user = await one("SELECT id, name FROM users WHERE (email = ? OR phone = ?) AND status = 'active'", [to, to]);
+      if (!user) throw new HttpError(404, 'No active user with that email / phone');
+      const out = await deliveryMessage(await notifyUsers([user.id], { title: 'Test notification 🔔', body: message, link: '/admin', type: 'test' }));
+      if (!out.ok) throw new HttpError(400, out.message.replace('Saved in-app only.', `Saved in ${user.name}'s in-app notifications only.`));
+      return res.json({ message: `${out.message} (${user.name})` });
+    }
     let result;
     if (req.params.channel === 'email') result = await sendEmail({ to, subject: 'Test email', html: `<p>${message}</p>`, refType: 'test', userId: req.user.id });
     else if (req.params.channel === 'sms') result = await sendSMS({ to, message, refType: 'test', userId: req.user.id });

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Bell, BellRing, BellOff, CheckCheck, Send } from 'lucide-react';
+import { Bell, BellRing, BellOff, CheckCheck, Send, X } from 'lucide-react';
 import api, { errMsg } from '../../lib/api';
 import { pushStatus, enablePush, disablePush, syncPush } from '../../lib/push';
 import { cn } from '../../lib/utils';
@@ -23,6 +23,7 @@ export default function NotificationBell() {
   const [unread, setUnread] = useState(0);
   const [push, setPush] = useState('disabled');
   const [busy, setBusy] = useState(false);
+  const [prompt, setPrompt] = useState(false);
   const lastUnread = useRef(null);
   const ref = useRef();
 
@@ -31,7 +32,7 @@ export default function NotificationBell() {
       const { data } = await api.get('/notifications', { params: { limit: 20 } });
       setItems(data.data);
       setUnread(data.unread);
-      // in-app toast when something new arrives and push is not enabled on this device
+      // in-app toast when something new arrives while the panel is open
       if (lastUnread.current !== null && data.unread > lastUnread.current && data.data[0] && document.visibilityState === 'visible') {
         toast(data.data[0].title, { icon: '🔔' });
       }
@@ -44,15 +45,30 @@ export default function NotificationBell() {
   useEffect(() => {
     load();
     syncPush();
-    pushStatus().then(setPush);
-    const t = setInterval(load, 45000);
+    pushStatus().then((st) => {
+      setPush(st);
+      // ask once per browser; the browser itself only allows the permission dialog after a click
+      let dismissed = false;
+      try { dismissed = localStorage.getItem('push_prompt_dismissed') === '1'; } catch { /* storage blocked */ }
+      if (st === 'disabled' && Notification.permission === 'default' && !dismissed) setPrompt(true);
+    });
+    const t = setInterval(load, 30000);
     const onFocus = () => load();
+    // the service worker forwards each push, so the bell updates instantly instead of on the next poll
+    const onMessage = (e) => e.data && e.data.type === 'push' && load();
     window.addEventListener('focus', onFocus);
+    if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', onMessage);
     return () => {
       clearInterval(t);
       window.removeEventListener('focus', onFocus);
+      if ('serviceWorker' in navigator) navigator.serviceWorker.removeEventListener('message', onMessage);
     };
   }, [load]);
+
+  const dismissPrompt = () => {
+    setPrompt(false);
+    try { localStorage.setItem('push_prompt_dismissed', '1'); } catch { /* storage blocked */ }
+  };
 
   useEffect(() => {
     const close = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false);
@@ -79,6 +95,7 @@ export default function NotificationBell() {
         await enablePush();
         toast.success('Push notifications enabled on this device');
       }
+      setPrompt(false);
       setPush(await pushStatus());
     } catch (e) {
       toast.error(errMsg(e));
@@ -90,7 +107,8 @@ export default function NotificationBell() {
   const test = async () => {
     try {
       const { data } = await api.post('/notifications/push/test');
-      toast.success(data.message);
+      if (data.ok) toast.success(data.message);
+      else toast(data.message, { icon: 'ℹ️', duration: 7000 });
       load();
     } catch (e) {
       toast.error(errMsg(e));
@@ -99,6 +117,22 @@ export default function NotificationBell() {
 
   return (
     <div className="relative" ref={ref}>
+      {prompt && push === 'disabled' && (
+        <div className="fixed bottom-4 right-4 z-50 w-[340px] max-w-[calc(100vw-2rem)] rounded-2xl border border-slate-100 bg-white p-4 shadow-2xl">
+          <button onClick={dismissPrompt} className="absolute right-2 top-2 rounded-lg p-1 text-slate-400 hover:bg-slate-100" aria-label="Dismiss"><X className="h-4 w-4" /></button>
+          <div className="flex gap-3 pr-5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600"><BellRing className="h-5 w-5" /></span>
+            <div>
+              <p className="text-sm font-semibold text-navy-900">Turn on notifications?</p>
+              <p className="mt-0.5 text-xs text-slate-500">Get alerted on this device when tasks, leaves, reports or approvals need you, even when this tab is closed.</p>
+              <div className="mt-3 flex gap-2">
+                <button onClick={togglePush} disabled={busy} className="btn-primary btn-sm">{busy ? <Spinner className="h-3.5 w-3.5 text-white" /> : <Bell className="h-3.5 w-3.5" />} Enable</button>
+                <button onClick={dismissPrompt} className="btn-ghost btn-sm">Not now</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <button onClick={() => setOpen(!open)} className="relative rounded-xl p-2.5 text-slate-600 hover:bg-slate-100" aria-label="Notifications">
         <Bell className="h-5 w-5" />
         {unread > 0 && <span className="absolute right-1 top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{unread > 99 ? '99+' : unread}</span>}

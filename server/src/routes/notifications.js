@@ -3,6 +3,7 @@ const { query, one } = require('../config/db');
 const { authenticate } = require('../middleware/auth');
 const { asyncHandler, HttpError } = require('../middleware/error');
 const { vapidKeys, notifyUsers } = require('../services/push');
+const { fcmReady } = require('../services/fcm');
 
 const router = express.Router();
 router.use(authenticate);
@@ -67,13 +68,29 @@ router.post(
   })
 );
 
+/** Summarise where a notification went, e.g. "Sent to 1 browser and 2 phones" */
+async function deliveryMessage(result) {
+  const web = (result && result.web) || { sent: 0, devices: 0 };
+  const mobile = (result && result.mobile) || { sent: 0, devices: 0, errors: [] };
+  const parts = [];
+  if (web.sent) parts.push(`${web.sent} browser${web.sent > 1 ? 's' : ''}`);
+  if (mobile.sent) parts.push(`${mobile.sent} phone${mobile.sent > 1 ? 's' : ''}`);
+  if (parts.length) return { ok: true, message: `Test sent to ${parts.join(' and ')}` };
+  if (mobile.errors && mobile.errors.length) return { ok: false, message: `Mobile push failed: ${mobile.errors[0]}` };
+  const hints = [];
+  if (!web.devices) hints.push('enable push in the bell menu on a browser');
+  if (!(await fcmReady())) hints.push('add the Firebase service account in Settings › Push notifications for the mobile app');
+  else if (!mobile.devices) hints.push('sign in to the mobile app with notifications allowed');
+  return { ok: false, message: `Saved in-app only. To get it as a push notification, ${hints.join(', or ')}.` };
+}
+
 router.post(
   '/push/test',
   asyncHandler(async (req, res) => {
-    const [{ c }] = await query('SELECT COUNT(*) c FROM push_subscriptions WHERE user_id = ?', [req.user.id]);
-    await notifyUsers([req.user.id], { title: 'Test notification 🔔', body: 'Push notifications are working on your device.', link: '/admin', type: 'test' });
-    res.json({ message: c ? `Test sent to ${c} device(s)` : 'Saved in-app. Enable push on this device to receive it as a notification.' });
+    const result = await notifyUsers([req.user.id], { title: 'Test notification 🔔', body: 'Push notifications are working on your device.', link: '/admin', type: 'test' });
+    res.json(await deliveryMessage(result));
   })
 );
 
 module.exports = router;
+module.exports.deliveryMessage = deliveryMessage;

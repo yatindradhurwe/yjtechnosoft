@@ -815,6 +815,31 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Message' }
 
+  /notifications/test:
+    post:
+      tags: [Notifications]
+      summary: Send a test push to every device of the signed-in user
+      responses:
+        '200':
+          description: OK – `message` says where it was delivered, or what to set up
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Envelope'
+                  - properties:
+                      data:
+                        type: object
+                        properties:
+                          web:
+                            type: object
+                            nullable: true
+                            properties: { sent: { type: integer }, devices: { type: integer } }
+                          mobile:
+                            type: object
+                            nullable: true
+                            properties: { sent: { type: integer }, failed: { type: integer }, devices: { type: integer } }
+
   /announcements:
     get:
       tags: [Notifications]

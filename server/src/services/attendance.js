@@ -16,6 +16,7 @@ const { query, one } = require('../config/db');
 const { HttpError } = require('../middleware/error');
 const { getSettings } = require('../utils/settings');
 const { toDateStr, toDateTimeStr } = require('../utils/helpers');
+const { notifyRoles } = require('./push');
 
 /** Distance in metres between two lat/lng points (haversine) */
 function distanceMeters(lat1, lng1, lat2, lng2) {
@@ -173,6 +174,17 @@ async function checkIn(empId, opts = {}) {
   }
   let message = late ? 'Checked in (late)' : 'Checked in successfully';
   if (geofence === 'outside') message += ` – you are outside ${site.name} (${site.distance} m away)`;
+  // allowed but suspicious (flag mode): let HR know right away
+  const mocked = isTrue(opts.is_mocked);
+  if ((geofence === 'outside' || mocked) && s.notify_attendance_flags !== '0') {
+    const who = await one('SELECT name FROM employees WHERE id = ?', [empId]);
+    notifyRoles(['hr'], {
+      title: `📍 ${who.name} checked in ${mocked ? 'with a mock location' : 'outside the geofence'}`,
+      body: geofence === 'outside' ? `${site.distance} m from ${site.name} · ${source}` : `Location spoofing app detected · ${source}`,
+      link: '/admin/attendance',
+      type: 'attendance',
+    }).catch(() => {});
+  }
   return { message, attendance: (await todayStatus(empId)).attendance, geofence: { status: geofence, mode, site: siteSummary(site) } };
 }
 

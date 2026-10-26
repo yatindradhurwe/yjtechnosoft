@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Settings as SettingsIcon, Save, Shield, Bell, Send, UserCircle, KeyRound, Plus, Pencil, Trash2, Mail, MessageSquare, MessageCircle } from 'lucide-react';
+import { Settings as SettingsIcon, Save, Shield, Bell, BellRing, Send, UserCircle, KeyRound, Plus, Pencil, Trash2, Mail, MessageSquare, MessageCircle } from 'lucide-react';
 import api, { errMsg } from '../../lib/api';
 import useFetch from '../../lib/useFetch';
 import { useAuth } from '../../context/AuthContext';
@@ -85,7 +85,7 @@ const SECTIONS = {
     ],
   },
   integrations: {
-    label: 'Email / SMS / WhatsApp',
+    label: 'Email / SMS / WhatsApp / Push',
     groups: [
       {
         title: 'Email (SMTP)', icon: Mail, channel: 'email',
@@ -113,6 +113,18 @@ const SECTIONS = {
           { name: 'whatsapp_token', label: 'Access token (Meta)', type: 'password' }, { name: 'whatsapp_phone_id', label: 'Phone number ID (Meta)' }, { name: 'twilio_whatsapp_from', label: 'Twilio WhatsApp number', placeholder: '+14155238886' },
           { name: 'whatsapp_custom_url', label: 'Custom API URL', span: 2, hint: 'Placeholders {{to}} {{to10}} {{message}} {{file}} {{filename}}' },
           { name: 'whatsapp_admin_number', label: 'Admin WhatsApp (for alerts)' }, { name: 'enquiry_whatsapp_alert', label: 'WhatsApp me on new enquiry', type: 'switch' },
+        ],
+      },
+      {
+        title: 'Push notifications (web & mobile app)', icon: BellRing, channel: 'push',
+        intro: 'Browser push works out of the box: each user turns it on from the bell menu. To reach the employee mobile app, add a Firebase service account.',
+        fields: [
+          {
+            name: 'fcm_service_account', label: 'Firebase service account JSON (mobile app)', type: 'textarea', span: 2, rows: 4, placeholder: '{ "type": "service_account", "project_id": "…", "private_key": "…", "client_email": "…" }',
+            hint: 'Firebase console › Project settings › Service accounts › Generate new private key – paste the whole file. Use the same Firebase project as the Flutter app.',
+          },
+          { name: 'notify_daily_reports', label: 'Notify HR when an employee submits a daily report', type: 'switch', default: 1 },
+          { name: 'notify_attendance_flags', label: 'Notify HR on check-ins outside the geofence / mock location', type: 'switch', default: 1 },
         ],
       },
     ],
@@ -151,7 +163,7 @@ function TestBox({ channel }) {
   };
   return (
     <div className="mt-4 flex gap-2 rounded-xl bg-slate-50 p-3">
-      <input className="input" placeholder={channel === 'email' ? 'Send test email to…' : 'Send test to mobile…'} value={to} onChange={(e) => setTo(e.target.value)} />
+      <input className="input" placeholder={channel === 'email' ? 'Send test email to…' : channel === 'push' ? 'Send test push to user (email or phone)…' : 'Send test to mobile…'} value={to} onChange={(e) => setTo(e.target.value)} />
       <button type="button" className="btn-outline shrink-0" onClick={test} disabled={busy || !to}>{busy ? <Spinner className="h-4 w-4" /> : <Send className="h-4 w-4" />} Test</button>
     </div>
   );
@@ -187,9 +199,10 @@ export function Settings() {
         <div className="space-y-6">
           {sec.groups.map((g) => (
             <div key={g.title} className="card p-6">
-              <h3 className="mb-5 flex items-center gap-2 font-semibold"><g.icon className="h-5 w-5 text-brand-600" /> {g.title}</h3>
+              <h3 className={g.intro ? 'mb-1 flex items-center gap-2 font-semibold' : 'mb-5 flex items-center gap-2 font-semibold'}><g.icon className="h-5 w-5 text-brand-600" /> {g.title}</h3>
+              {g.intro && <p className="mb-5 text-sm text-slate-500">{g.intro}</p>}
               <div className="grid gap-4 sm:grid-cols-2">
-                {g.fields.map((f) => <FormField key={f.name} field={f} value={form[f.name]} onChange={set} />)}
+                {g.fields.map((f) => <FormField key={f.name} field={f} value={form[f.name] ?? f.default} onChange={set} />)}
               </div>
               <TestBox channel={g.channel} />
               <p className="mt-2 text-xs text-slate-400">Save settings before testing.</p>
