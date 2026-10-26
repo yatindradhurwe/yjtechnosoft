@@ -10,6 +10,7 @@ import { MyAttendance, MyLeaves, MyPayslips, MyLetters } from './pages/admin/My'
 import { Settings, Users, Logs, Profile } from './pages/admin/System';
 import { NotFound } from './pages/site/Pages';
 import { Contracts, ContractForm, ContractTemplates, Vault, ProjectView } from './pages/admin/Contracts';
+import { Campaigns, CampaignForm, CampaignView, EmailTemplates, Unsubscribes } from './pages/admin/Marketing';
 
 const ACC = ['accounts'];
 const HR = ['hr'];
@@ -54,6 +55,13 @@ export default function AdminRoutes() {
         <Route path="contract-templates" element={guard(ACC, <ContractTemplates />)} />
         <Route path="vault" element={guard([...ACC, ...HR], <Vault />)} />
         <Route path="projects/:id" element={guard([...ACC, ...HR], <ProjectView />)} />
+
+        {/* email marketing */}
+        <Route path="campaigns" element={guard(ACC, <Campaigns />)} />
+        <Route path="campaigns/:id" element={guard(ACC, <CampaignView />)} />
+        <Route path="campaigns/:id/edit" element={guard(ACC, <CampaignForm />)} />
+        <Route path="email-templates" element={guard(ACC, <EmailTemplates />)} />
+        <Route path="unsubscribes" element={guard(ACC, <Unsubscribes />)} />
 
         {/* HR */}
         <Route path="employees" element={guard(HR, <Employees />)} />

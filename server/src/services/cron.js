@@ -1,6 +1,6 @@
 /**
  * Scheduled jobs: server/domain renewal reminders, overdue invoice reminders,
- * birthday wishes. Runs daily at 09:30 server time.
+ * birthday wishes. Runs daily at 09:30 server time. Email campaigns are sent every minute.
  */
 const cron = require('node-cron');
 const { query } = require('../config/db');
@@ -9,6 +9,7 @@ const { sendEmail, sendWhatsApp, notifyAdmins } = require('./notify');
 const { formatDate, formatMoney } = require('../utils/helpers');
 const { sendDocument } = require('./documents');
 const { notifyRoles } = require('./push');
+const { processCampaigns } = require('./campaigns');
 
 async function serverReminders() {
   const s = await getSettings();
@@ -72,6 +73,8 @@ async function runDaily() {
 
 function startCron() {
   cron.schedule('30 9 * * *', runDaily, { timezone: process.env.TZ || 'Asia/Kolkata' });
+  // bulk email campaigns go out in rate-limited batches every minute
+  cron.schedule('* * * * *', () => processCampaigns().catch((e) => console.error('[cron] campaigns failed:', e.message)));
 }
 
 module.exports = { startCron, runDaily };

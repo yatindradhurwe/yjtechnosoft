@@ -12,6 +12,7 @@ const path = require('path');
 const mysql = require('mysql2/promise');
 const bcrypt = require('bcryptjs');
 const { dbSettings } = require('../src/config/dbSettings');
+const EMAIL_TEMPLATES = require('./emailTemplates');
 
 
 const SETTINGS = {
@@ -105,6 +106,8 @@ const SETTINGS = {
   server_reminders: '1',
   server_reminder_days: '30,15,7,3,1,0',
   server_reminder_whatsapp: '0',
+  campaign_rate_per_minute: '20',
+  campaign_reply_to: '',
   invoice_reminders: '0',
   birthday_wishes: '1',
 };
@@ -554,6 +557,9 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
     await q('INSERT INTO contract_templates (name, type, title, body) VALUES ?', [CONTRACT_TEMPLATES.map((t) => [t.name, t.type, t.title, t.body])]);
   }
   await q("INSERT IGNORE INTO settings (`key`, `value`) VALUES ('contract_prefix', 'YJ/AGR')");
+  if (!(await count('email_templates'))) {
+    await q('INSERT INTO email_templates (name, category, subject, preheader, format, body) VALUES ?', [EMAIL_TEMPLATES.map((t) => [t.name, t.category, t.subject, t.preheader, t.format, t.body])]);
+  }
   if (!(await count('billing_items'))) {
     await q('INSERT INTO billing_items (name, hsn_sac, unit, rate, tax_rate) VALUES ?', [[
       ['Website Design & Development', '998314', 'Nos', 15000, 18], ['Custom Software Module', '998314', 'Nos', 25000, 18], ['Domain Registration (.com) – 1 Year', '998315', 'Nos', 999, 18],

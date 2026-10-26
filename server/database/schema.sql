@@ -836,4 +836,72 @@ CREATE TABLE IF NOT EXISTS mobile_sessions (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ---------------------------------------------------------------------------
+-- Email marketing: templates, bulk campaigns, per-recipient delivery & unsubscribes
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS email_templates (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(150) NOT NULL,
+  category VARCHAR(50) DEFAULT 'marketing',
+  subject VARCHAR(255) NOT NULL,
+  preheader VARCHAR(255),
+  format ENUM('layout','html') DEFAULT 'layout',
+  body MEDIUMTEXT NOT NULL,
+  status ENUM('active','inactive') DEFAULT 'active',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS email_campaigns (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(200) NOT NULL,
+  subject VARCHAR(255) NOT NULL,
+  preheader VARCHAR(255),
+  format ENUM('layout','html') DEFAULT 'layout',
+  body MEDIUMTEXT NOT NULL,
+  template_id INT NULL,
+  audience TEXT,
+  reply_to VARCHAR(150),
+  track_opens TINYINT(1) DEFAULT 1,
+  track_clicks TINYINT(1) DEFAULT 1,
+  status ENUM('draft','scheduled','sending','paused','sent','cancelled') DEFAULT 'draft',
+  scheduled_at DATETIME NULL,
+  last_error VARCHAR(500),
+  started_at DATETIME NULL,
+  completed_at DATETIME NULL,
+  created_by INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX (status, scheduled_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS email_campaign_recipients (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  campaign_id INT NOT NULL,
+  email VARCHAR(190) NOT NULL,
+  name VARCHAR(190),
+  source VARCHAR(30),
+  data TEXT,
+  token CHAR(32) NOT NULL,
+  status ENUM('pending','sending','sent','failed','skipped') DEFAULT 'pending',
+  error VARCHAR(500),
+  claimed_at DATETIME NULL,
+  sent_at DATETIME NULL,
+  opened_at DATETIME NULL,
+  open_count INT DEFAULT 0,
+  clicked_at DATETIME NULL,
+  click_count INT DEFAULT 0,
+  unsubscribed_at DATETIME NULL,
+  UNIQUE KEY uniq_token (token),
+  UNIQUE KEY uniq_campaign_email (campaign_id, email),
+  INDEX (campaign_id, status),
+  FOREIGN KEY (campaign_id) REFERENCES email_campaigns(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS email_unsubscribes (
+  email VARCHAR(190) PRIMARY KEY,
+  campaign_id INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SET FOREIGN_KEY_CHECKS = 1;

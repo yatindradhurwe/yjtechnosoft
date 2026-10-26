@@ -93,6 +93,8 @@ const SECTIONS = {
           { name: 'smtp_host', label: 'SMTP host', placeholder: 'smtp.gmail.com' }, { name: 'smtp_port', label: 'Port', placeholder: '587' }, { name: 'smtp_user', label: 'Username / email' },
           { name: 'smtp_pass', label: 'Password / App password', type: 'password' }, { name: 'smtp_secure', label: 'Use SSL (port 465)', type: 'switch' },
           { name: 'mail_from_name', label: 'From name' }, { name: 'mail_from_email', label: 'From email' }, { name: 'notify_admin_emails', label: 'Admin alert emails (comma separated)', span: 2 },
+          { name: 'campaign_rate_per_minute', label: 'Campaign emails per minute', type: 'number', hint: 'Bulk campaigns are sent in batches. Keep it low (10–30) on a new mail server to protect deliverability.' },
+          { name: 'campaign_reply_to', label: 'Campaign reply-to email', hint: 'Replies to campaigns go here. Defaults to the company email.' },
         ],
       },
       {
@@ -140,6 +142,7 @@ function TestBox({ channel }) {
     try {
       const { data } = await api.post(`/settings/test/${channel}`, { to });
       toast.success(data.message);
+      if (data.waLink) window.open(data.waLink, '_blank', 'noopener');
     } catch (e) {
       toast.error(errMsg(e), { duration: 7000 });
     } finally {

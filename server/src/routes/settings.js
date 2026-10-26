@@ -43,6 +43,10 @@ router.post(
     else if (req.params.channel === 'sms') result = await sendSMS({ to, message, refType: 'test', userId: req.user.id });
     else if (req.params.channel === 'whatsapp') result = await sendWhatsApp({ to, message, refType: 'test', userId: req.user.id });
     else throw new HttpError(400, 'Unknown channel');
+    // no WhatsApp API configured: hand back the click-to-chat link so the admin can still test the number
+    if (!result.ok && result.waLink && (await getSettings()).whatsapp_provider === 'none') {
+      return res.json({ message: 'No WhatsApp API is configured – opening WhatsApp click-to-chat instead', waLink: result.waLink });
+    }
     if (!result.ok) throw new HttpError(400, result.error);
     res.json({ message: 'Test message sent successfully' });
   })

@@ -39,6 +39,8 @@ app.get('/api/health', async (req, res) => {
 });
 // Employee mobile app (Flutter) – see docs/mobile-api.md
 app.use('/api/mobile/v1', require('./routes/mobile'));
+const marketing = require('./routes/marketing');
+app.use('/api/public/mail', marketing.publicRouter);
 app.use('/api/public', require('./routes/public'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/dashboard', require('./routes/dashboard'));
@@ -49,6 +51,7 @@ app.use('/api/work', require('./routes/work'));
 app.use('/api/recruitment', require('./routes/recruitment'));
 app.use('/api/contracts', require('./routes/contracts'));
 app.use('/api/notifications', require('./routes/notifications'));
+app.use('/api/marketing', marketing.router);
 app.use('/api', require('./routes/settings'));
 app.use('/api/admin', require('./routes/crud'));
 app.use('/api', notFound);

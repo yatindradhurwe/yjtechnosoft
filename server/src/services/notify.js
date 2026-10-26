@@ -35,10 +35,11 @@ function normalisePhone(phone, defaultCc = '91') {
 // ---------------------------------------------------------------------------
 // Email
 // ---------------------------------------------------------------------------
-function emailLayout(s, bodyHtml) {
+function emailLayout(s, bodyHtml, { preheader = '', footerHtml = '' } = {}) {
   const site = s.site_url || process.env.APP_URL || '';
   const logo = s.logo ? (s.logo.startsWith('http') ? s.logo : `${process.env.API_URL || ''}${s.logo}`) : '';
   return `<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Segoe UI,Arial,sans-serif;color:#0f172a">
+  ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0">${preheader}</div>` : ''}
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 0"><tr><td align="center">
   <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:12px;overflow:hidden">
     <tr><td style="background:#0b1b33;padding:20px 28px;border-bottom:4px solid #f7c41a">
@@ -49,28 +50,37 @@ function emailLayout(s, bodyHtml) {
     <tr><td style="background:#f8fafc;padding:18px 28px;font-size:12px;color:#64748b">
       ${s.company_name || ''} · ${s.address || ''}<br>
       ${s.phone || ''} · ${s.email || ''} ${site ? `· <a href="${site}" style="color:#1d6fb8">${site.replace(/^https?:\/\//, '')}</a>` : ''}
+      ${footerHtml}
     </td></tr>
   </table></td></tr></table></body></html>`;
 }
 
+const smtpReady = (s) => !!(s.smtp_host && s.smtp_user);
+
+function createMailTransport(s, extra = {}) {
+  const port = Number(s.smtp_port || 587);
+  return nodemailer.createTransport({
+    host: s.smtp_host,
+    port,
+    secure: s.smtp_secure === '1' || port === 465,
+    auth: { user: s.smtp_user, pass: s.smtp_pass },
+    ...extra,
+  });
+}
+
+const mailFrom = (s) => `"${s.mail_from_name || s.company_name || 'YJTechnosoft'}" <${s.mail_from_email || s.smtp_user}>`;
+
 async function sendEmail({ to, subject, html, text, attachments = [], cc, refType, refId, userId, raw = false }) {
   const s = await getSettings();
   if (!to) return { ok: false, error: 'No recipient email' };
-  if (!s.smtp_host || !s.smtp_user) {
+  if (!smtpReady(s)) {
     const error = 'SMTP is not configured (Admin > Settings > Integrations)';
     await log('email', to, { subject, message: text || html, status: 'skipped', error, refType, refId, userId });
     return { ok: false, error };
   }
   try {
-    const port = Number(s.smtp_port || 587);
-    const transporter = nodemailer.createTransport({
-      host: s.smtp_host,
-      port,
-      secure: s.smtp_secure === '1' || port === 465,
-      auth: { user: s.smtp_user, pass: s.smtp_pass },
-    });
-    await transporter.sendMail({
-      from: `"${s.mail_from_name || s.company_name || 'YJTechnosoft'}" <${s.mail_from_email || s.smtp_user}>`,
+    await createMailTransport(s).sendMail({
+      from: mailFrom(s),
       to,
       cc,
       subject,
@@ -196,4 +206,4 @@ async function notifyAdmins(subject, html) {
   await sendEmail({ to: list.join(','), subject, html, refType: 'admin_alert' });
 }
 
-module.exports = { sendEmail, sendSMS, sendWhatsApp, notifyAdmins, normalisePhone };
+module.exports = { sendEmail, sendSMS, sendWhatsApp, notifyAdmins, normalisePhone, emailLayout, createMailTransport, mailFrom, smtpReady };

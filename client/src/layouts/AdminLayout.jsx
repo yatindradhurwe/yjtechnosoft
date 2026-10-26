@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Image, Briefcase, FileText, MessageSquareQuote, Users, Building2, Cpu, BarChart3, BadgeIndianRupee, HelpCircle, FileStack,
   Inbox, Mail, Receipt, FileSpreadsheet, Wallet, Package, Server, CreditCard, UserCog, CalendarCheck, CalendarOff, PartyPopper, Banknote, Network,
   BadgeCheck, CalendarRange, Megaphone, UserPlus, ClipboardList, FileSignature, FolderKanban, ListTodo, NotebookPen, Settings, Shield, Bell, LogOut,
-  Menu, X, ChevronDown, UserCircle, ExternalLink, Clock, Layers, FolderLock, Rocket } from 'lucide-react';
+  Menu, X, ChevronDown, UserCircle, ExternalLink, Clock, Layers, FolderLock, Rocket, Send, LayoutTemplate, MailX } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSite } from '../context/SiteContext';
 import { asset, cn } from '../lib/utils';
@@ -61,6 +61,15 @@ export const NAV = [
       { label: 'Designations', to: '/admin/designations', icon: BadgeCheck },
       { label: 'Leave Types', to: '/admin/leave-types', icon: CalendarRange },
       { label: 'Announcements', to: '/admin/announcements', icon: Megaphone },
+    ],
+  },
+  {
+    group: 'Email Marketing',
+    roles: ['accounts'],
+    items: [
+      { label: 'Campaigns', to: '/admin/campaigns', icon: Send },
+      { label: 'Email Templates', to: '/admin/email-templates', icon: LayoutTemplate },
+      { label: 'Do-not-email List', to: '/admin/unsubscribes', icon: MailX },
     ],
   },
   {

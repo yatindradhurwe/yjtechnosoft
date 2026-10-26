@@ -8,6 +8,7 @@ A complete, fully dynamic replacement for the old PHP website of **YJTECHNOSOFT 
 * **Recruitment** – job openings on the careers page, online applications with resume upload, hiring pipeline.
 * **Documents on your letterhead** – invoices, quotations, receipts, payslips, internship offer letters, offer/appointment/joining/experience/relieving letters. All PDFs use the same letterhead as your existing invoices.
 * **Email, SMS & WhatsApp** – send any document or message from the panel. Every message is logged.
+* **Email marketing** – bulk email campaigns to clients, leads, subscribers, employees, applicants or a pasted list, with email templates, test sends, scheduling, open/click tracking and one-click unsubscribe.
 * **Contracts & agreements** – website, software, AMC, hosting, NDA and consultant agreements from templates. Clients can accept them online.
 * **Documents vault** – private storage for agreements, work orders, proposals, KYC and certificates, linked to clients and projects.
 * **One-click sharing** – invoices, bills, quotations, receipts, agreements and letters can be shared on WhatsApp or email. Each share opens a branded page with a UPI QR and online acceptance.
@@ -115,6 +116,7 @@ Every channel has a **Test** button. All sent, failed and skipped messages appea
 **Email (SMTP)**
 * Gmail: host `smtp.gmail.com`, port `587`. Username is your Gmail address. Password is a Google **App Password** (Google Account › Security › App passwords).
 * Hostinger / cPanel mail: use the SMTP host, port 465 (SSL on) or 587, and the mailbox credentials.
+* Own VPS mail server (auto-deploy panel): create an app mailbox such as `no-reply@yourdomain.com` and use host `automate-deployment.yjtechnosoft.com`, port `587`, SSL off. The domain needs SPF and DKIM records.
 
 **SMS**
 * **Fast2SMS** – API key, route `q` (quick) or `dlt` with a DLT-approved sender ID.
@@ -125,9 +127,19 @@ Every channel has a **Test** button. All sent, failed and skipped messages appea
 **WhatsApp**
 * **Meta WhatsApp Cloud API** (official): permanent access token plus phone number ID from developers.facebook.com. PDFs are sent as WhatsApp documents through a signed link, so the server must be reachable from the internet.
 * **Twilio WhatsApp** or **Custom** HTTP API, for Indian WhatsApp panel providers. Placeholders: `{{to}} {{to10}} {{message}} {{file}} {{filename}}`.
-* When no WhatsApp API is configured, the panel opens a **click-to-chat** (`wa.me`) link with the message and the PDF link pre-filled.
+* When no WhatsApp API is configured, the panel opens a **click-to-chat** (`wa.me`) link with the message and the PDF link pre-filled. The WhatsApp **Test** button does the same.
 
 Default messages for invoices, quotations, receipts, letters and payslips can be edited in **Settings › Message templates**.
+
+**Bulk email campaigns (Admin › Email Marketing)**
+* **Email Templates** – a library of reusable emails. *Rich text* templates are wrapped in the company email layout. *HTML* templates are complete designed emails. Every template has a live preview and **Send test**. Seven templates ship by default (enquiry follow-up, newsletter, renewal offer, feedback, service promotion, festive offer, announcement).
+* **Campaigns** – pick a template, edit the content, choose the audience (newsletter subscribers, clients, leads filtered by status, employees, job applicants and/or a pasted list), click **Count recipients**, send yourself a test, then **Send now** or **Schedule**.
+  * Placeholders: `{{name}} {{first_name}} {{email}} {{company}} {{company_name}} {{site_name}} {{site_url}} {{our_phone}} {{our_email}} {{year}} {{unsubscribe_url}}`.
+  * Emails go out in batches every minute. The rate is set in **Settings › Email › Campaign emails per minute** (default 20). Keep it low on a new mail server.
+  * Duplicates, invalid addresses and unsubscribed people are removed automatically. Every email has an unsubscribe link and the `List-Unsubscribe` one-click header that Gmail and Yahoo require for bulk mail.
+  * Campaign report: delivered, opened, clicked, failed and unsubscribed, with per-recipient status. You can **Pause**, **Resume**, **Cancel**, **Retry failed** and **Duplicate**. If the mail server rejects the login or the connection fails, the campaign pauses itself and the admins get an email.
+* **Do-not-email list** – everyone who unsubscribed. You can also add addresses by hand. Campaigns always skip these addresses.
+* Tracking and unsubscribe links use **Public API URL** (or `API_URL`), so that URL must be reachable from the internet.
 
 ---
 

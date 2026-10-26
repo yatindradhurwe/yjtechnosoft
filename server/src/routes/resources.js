@@ -167,6 +167,14 @@ const resources = {
     roles: ACCOUNTS,
   },
 
+  email_templates: {
+    table: 'email_templates',
+    fields: ['name', 'category', 'subject', 'preheader', 'format', 'body', 'status'],
+    search: ['name', 'subject'],
+    filters: ['category'],
+    order: 'id ASC',
+    roles: ACCOUNTS,
+  },
   contract_templates: {
     table: 'contract_templates',
     fields: ['name', 'type', 'title', 'body', 'status'],
