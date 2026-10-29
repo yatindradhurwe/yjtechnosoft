@@ -1,0 +1,94 @@
+# Deploys the app to cPanel ("Setup Node.js App") on every push to main.
+# The client is built here, the files are copied over SSH with rsync, then the
+# server dependencies are installed on cPanel and the app is restarted.
+#
+# Repository secrets (Settings > Secrets and variables > Actions > Secrets):
+#   CPANEL_HOST      server hostname or IP, e.g. server123.hosting.com
+#   CPANEL_PORT      SSH port (often 22, some hosts use 21098 or 2222)
+#   CPANEL_USER      cPanel username
+#   CPANEL_SSH_KEY   private key whose public key is authorised in cPanel > SSH Access
+#
+# Repository variables (same page > Variables):
+#   CPANEL_APP_ROOT      Application root as shown in Setup Node.js App, relative to home, e.g. yjtechnosoft
+#   CPANEL_NODE_VERSION  Node major version selected in Setup Node.js App, e.g. 20
+#
+# server/.env and server/uploads on cPanel are never overwritten or deleted.
+
+name: Deploy to cPanel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-cpanel
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ vars.CPANEL_NODE_VERSION || '20' }}
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+
+      - name: Build client
+        run: |
+          npm ci --prefix client
+          npm run build --prefix client
+
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.CPANEL_SSH_KEY }}
+          HOST: ${{ secrets.CPANEL_HOST }}
+          PORT: ${{ secrets.CPANEL_PORT || '22' }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -p "$PORT" "$HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload files
+        env:
+          HOST: ${{ secrets.CPANEL_HOST }}
+          PORT: ${{ secrets.CPANEL_PORT || '22' }}
+          USER: ${{ secrets.CPANEL_USER }}
+          APP_ROOT: ${{ vars.CPANEL_APP_ROOT }}
+        run: |
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/deploy_key -p $PORT" \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude 'node_modules/' \
+            --exclude 'client/node_modules/' \
+            --exclude 'server/node_modules/' \
+            --exclude 'server/.env' \
+            --exclude 'server/uploads/' \
+            --exclude 'tmp/' \
+            --exclude '.htaccess' \
+            ./ "$USER@$HOST:$APP_ROOT/"
+
+      - name: Install server dependencies and restart
+        env:
+          HOST: ${{ secrets.CPANEL_HOST }}
+          PORT: ${{ secrets.CPANEL_PORT || '22' }}
+          USER: ${{ secrets.CPANEL_USER }}
+          APP_ROOT: ${{ vars.CPANEL_APP_ROOT }}
+          NODE_VERSION: ${{ vars.CPANEL_NODE_VERSION || '20' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -p "$PORT" "$USER@$HOST" bash -s -- "$APP_ROOT" "$NODE_VERSION" <<'EOF'
+          set -e
+          APP_ROOT="$1"
+          NODE_VERSION="$2"
+          source "$HOME/nodevenv/$APP_ROOT/$NODE_VERSION/bin/activate"
+          cd "$HOME/$APP_ROOT"
+          npm install --prefix server --omit=dev
+          mkdir -p tmp server/uploads
+          touch tmp/restart.txt
+          echo "Deployed $(date)"
+          EOF
