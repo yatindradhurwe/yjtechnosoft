@@ -19,6 +19,7 @@ const NAV = [
   { to: '/portfolio', label: 'Portfolio' },
   { to: '/careers', label: 'Careers' },
   { to: '/blog', label: 'Blog' },
+  { to: '/community', label: 'Community' },
   { to: '/contact', label: 'Contact' },
 ];
 
@@ -264,7 +265,7 @@ function Footer() {
           <div className="lg:col-span-2">
             <h4 className="mb-4 font-semibold text-white">Company</h4>
             <ul className="space-y-2.5 text-sm">
-              {[['About Us', '/about'], ['Our Products', '/products'], ['Portfolio', '/portfolio'], ['Careers', '/careers'], ['Blog', '/blog'], ['Contact', '/contact'], ['Get a Quote', '/get-quote']].map(([l, to]) => (
+              {[['About Us', '/about'], ['Our Products', '/products'], ['Portfolio', '/portfolio'], ['Careers', '/careers'], ['Blog', '/blog'], ['Community', '/community'], ['Contact', '/contact'], ['Get a Quote', '/get-quote']].map(([l, to]) => (
                 <li key={to}>
                   <Link to={to} className="transition hover:text-accent-400">{l}</Link>
                 </li>

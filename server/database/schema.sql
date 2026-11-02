@@ -904,4 +904,94 @@ CREATE TABLE IF NOT EXISTS email_unsubscribes (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ============================================================ COMMUNITY
+-- Public members are deliberately separate from `users` (staff): a member can never reach the admin panel
+CREATE TABLE IF NOT EXISTS community_members (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  email VARCHAR(150) NOT NULL UNIQUE,
+  password_hash VARCHAR(255) NOT NULL,
+  avatar VARCHAR(255),
+  bio VARCHAR(300),
+  status ENUM('active','banned') NOT NULL DEFAULT 'active',
+  token_version INT NOT NULL DEFAULT 0,
+  reset_token VARCHAR(100) NULL,
+  reset_expires DATETIME NULL,
+  last_login DATETIME NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS community_categories (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(80) NOT NULL,
+  slug VARCHAR(100) NOT NULL UNIQUE,
+  emoji VARCHAR(16),
+  sort_order INT DEFAULT 0,
+  status ENUM('active','inactive') NOT NULL DEFAULT 'active'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS community_posts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  member_id INT NOT NULL,
+  category_id INT NULL,
+  content TEXT,
+  mood VARCHAR(16),
+  media TEXT,
+  status ENUM('published','pending','hidden') NOT NULL DEFAULT 'published',
+  is_pinned TINYINT(1) NOT NULL DEFAULT 0,
+  shares_count INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_community_feed (status, is_pinned, created_at),
+  CONSTRAINT fk_cp_member FOREIGN KEY (member_id) REFERENCES community_members(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cp_category FOREIGN KEY (category_id) REFERENCES community_categories(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS community_comments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  post_id INT NOT NULL,
+  member_id INT NOT NULL,
+  parent_id INT NULL,
+  reply_to_member_id INT NULL,
+  content TEXT NOT NULL,
+  status ENUM('published','hidden') NOT NULL DEFAULT 'published',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_community_comments (post_id, parent_id, created_at),
+  CONSTRAINT fk_cc_post FOREIGN KEY (post_id) REFERENCES community_posts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cc_member FOREIGN KEY (member_id) REFERENCES community_members(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cc_parent FOREIGN KEY (parent_id) REFERENCES community_comments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cc_reply_to FOREIGN KEY (reply_to_member_id) REFERENCES community_members(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS community_post_likes (
+  post_id INT NOT NULL,
+  member_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (post_id, member_id),
+  CONSTRAINT fk_cpl_post FOREIGN KEY (post_id) REFERENCES community_posts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cpl_member FOREIGN KEY (member_id) REFERENCES community_members(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS community_comment_likes (
+  comment_id INT NOT NULL,
+  member_id INT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (comment_id, member_id),
+  CONSTRAINT fk_ccl_comment FOREIGN KEY (comment_id) REFERENCES community_comments(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ccl_member FOREIGN KEY (member_id) REFERENCES community_members(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS community_reports (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  member_id INT NOT NULL,
+  post_id INT NULL,
+  comment_id INT NULL,
+  reason VARCHAR(300),
+  status ENUM('open','resolved') NOT NULL DEFAULT 'open',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_community_report (member_id, post_id, comment_id),
+  CONSTRAINT fk_cr_member FOREIGN KEY (member_id) REFERENCES community_members(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cr_post FOREIGN KEY (post_id) REFERENCES community_posts(id) ON DELETE CASCADE,
+  CONSTRAINT fk_cr_comment FOREIGN KEY (comment_id) REFERENCES community_comments(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SET FOREIGN_KEY_CHECKS = 1;

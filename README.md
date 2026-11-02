@@ -9,6 +9,7 @@ A complete, fully dynamic replacement for the old PHP website of **YJTECHNOSOFT 
 * **Documents on your letterhead** – invoices, quotations, receipts, payslips, internship offer letters, offer/appointment/joining/experience/relieving letters. All PDFs use the same letterhead as your existing invoices.
 * **Email, SMS & WhatsApp** – send any document or message from the panel. Every message is logged.
 * **Email marketing** – bulk email campaigns to clients, leads, subscribers, employees, applicants or a pasted list, with email templates, test sends, scheduling, open/click tracking and one-click unsubscribe.
+* **Community** – public `/community` page with its own member accounts: posts with photos, video, emoji and feelings, likes, comments, replies, sharing and reports, moderated from Admin › Community.
 * **Contracts & agreements** – website, software, AMC, hosting, NDA and consultant agreements from templates. Clients can accept them online.
 * **Documents vault** – private storage for agreements, work orders, proposals, KYC and certificates, linked to clients and projects.
 * **One-click sharing** – invoices, bills, quotations, receipts, agreements and letters can be shared on WhatsApp or email. Each share opens a branded page with a UPI QR and online acceptance.

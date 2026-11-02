@@ -42,6 +42,7 @@ app.use('/api/mobile/v1', require('./routes/mobile'));
 const marketing = require('./routes/marketing');
 app.use('/api/public/mail', marketing.publicRouter);
 app.use('/api/public', require('./routes/public'));
+app.use('/api/community', require('./routes/community'));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/billing', require('./routes/billing'));

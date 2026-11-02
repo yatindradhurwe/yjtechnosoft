@@ -9,6 +9,7 @@ import SharePage from './pages/site/SharePage';
 
 // Admin panel is code-split so the public website stays fast
 const AdminRoutes = lazy(() => import('./AdminRoutes'));
+const Community = lazy(() => import('./pages/site/Community'));
 
 export default function App() {
   return (
@@ -24,6 +25,14 @@ export default function App() {
         <Route path="portfolio/:slug" element={<PortfolioDetail />} />
         <Route path="blog" element={<Blog />} />
         <Route path="blog/:slug" element={<BlogPost />} />
+        <Route
+          path="community/*"
+          element={
+            <Suspense fallback={<PageLoader />}>
+              <Community />
+            </Suspense>
+          }
+        />
         <Route path="careers" element={<Careers />} />
         <Route path="careers/:slug" element={<CareerDetail />} />
         <Route path="contact" element={<Contact />} />

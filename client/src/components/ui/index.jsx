@@ -62,6 +62,7 @@ const STATUS_COLORS = {
   holiday: 'bg-pink-50 text-pink-700', resigned: 'bg-slate-100 text-slate-500', terminated: 'bg-red-50 text-red-700', on_notice: 'bg-amber-50 text-amber-700',
   urgent: 'bg-red-50 text-red-700', high: 'bg-orange-50 text-orange-700', medium: 'bg-sky-50 text-sky-700', low: 'bg-slate-100 text-slate-600',
   on_hold: 'bg-amber-50 text-amber-700', completed: 'bg-emerald-50 text-emerald-700', important: 'bg-red-50 text-red-700', normal: 'bg-slate-100 text-slate-600',
+  banned: 'bg-red-50 text-red-700', hidden: 'bg-orange-50 text-orange-700', resolved: 'bg-emerald-50 text-emerald-700',
   failed: 'bg-red-50 text-red-700', skipped: 'bg-slate-100 text-slate-500', unsubscribed: 'bg-slate-100 text-slate-500',
 };
 

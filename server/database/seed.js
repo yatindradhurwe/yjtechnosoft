@@ -114,6 +114,8 @@ const SETTINGS = {
   fcm_service_account: '',
   notify_daily_reports: '1',
   notify_attendance_flags: '1',
+  // community: 1 = new posts wait for admin approval
+  community_require_approval: '0',
 };
 
 const SERVICES = [
@@ -448,6 +450,10 @@ async function setupDatabase({ demo: withDemo = false, quiet = false } = {}) {
   // check-ins made before the source column existed came from the web panel (manual HR marks have no IP)
   await q("UPDATE attendance SET source = 'web' WHERE source IS NULL AND check_in_ip IS NOT NULL AND check_in IS NOT NULL");
   await addColumn('daily_reports', 'project_id', 'INT NULL');
+  if (!(await count('community_categories'))) {
+    const cats = [['Thought of the Day', 'thought-of-the-day', '💭'], ['Technology', 'technology', '💻'], ['AI', 'ai', '🤖'], ['Coding', 'coding', '👨‍💻'], ['General', 'general', '💬']];
+    await q('INSERT INTO community_categories (name, slug, emoji, sort_order) VALUES ?', [cats.map((c, i) => [...c, i])]);
+  }
   // logo/favicon now ship with the website build (works when site & API are served separately)
   await q("UPDATE settings SET `value` = '/logo.png' WHERE `key` = 'logo' AND `value` = '/assets/logo.png'");
   await q("UPDATE settings SET `value` = '/favicon.png' WHERE `key` = 'favicon' AND `value` = '/assets/logo-icon.png'");

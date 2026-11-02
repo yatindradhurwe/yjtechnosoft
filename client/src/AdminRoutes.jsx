@@ -10,6 +10,7 @@ import { MyAttendance, MyLeaves, MyPayslips, MyLetters } from './pages/admin/My'
 import { Settings, Users, Logs, Profile } from './pages/admin/System';
 import { NotFound } from './pages/site/Pages';
 import { Contracts, ContractForm, ContractTemplates, Vault, ProjectView } from './pages/admin/Contracts';
+import CommunityAdmin from './pages/admin/Community';
 import { Campaigns, CampaignForm, CampaignView, EmailTemplates, Unsubscribes } from './pages/admin/Marketing';
 
 const ACC = ['accounts'];
@@ -86,6 +87,7 @@ export default function AdminRoutes() {
 
         {/* admin only */}
         <Route path="cms/:resource" element={guard(ADMIN, <CmsResource />)} />
+        <Route path="community" element={guard(ADMIN, <CommunityAdmin />)} />
         <Route path="settings" element={guard(ADMIN, <Settings />)} />
         <Route path="users" element={guard(ADMIN, <Users />)} />
         <Route path="logs" element={guard(ADMIN, <Logs />)} />
